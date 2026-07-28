@@ -1,0 +1,30 @@
+.flight-map {
+
+    width: 100%;
+    height: 100%;
+
+}
+
+.leaflet-map {
+
+    width: 100%;
+    height: 610px;
+
+    border-radius: 14px;
+
+    overflow: hidden;
+
+}
+
+.popup h3 {
+
+    margin-bottom: 10px;
+    color: #0f172a;
+
+}
+
+.popup p {
+
+    margin: 3px 0;
+
+}

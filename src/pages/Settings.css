@@ -1,0 +1,85 @@
+.settings-page{
+    padding:40px;
+    color:white;
+    background:#111827;
+    min-height:100vh;
+}
+
+.subtitle{
+    color:#94a3b8;
+    margin-top:8px;
+    margin-bottom:30px;
+}
+
+.settings-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(350px,1fr));
+    gap:25px;
+}
+
+.setting-card{
+    background:#0b1220;
+    border:1px solid #1f2c46;
+    border-radius:16px;
+    padding:24px;
+}
+
+.setting-title{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:20px;
+    font-weight:600;
+    margin-bottom:20px;
+    color:#22d3ee;
+}
+
+.setting-card label{
+    display:block;
+    margin-top:15px;
+    margin-bottom:8px;
+    color:#cbd5e1;
+}
+
+.setting-card input,
+.setting-card select{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:#182338;
+    color:white;
+}
+
+.switch-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin:18px 0;
+}
+
+.outline-btn{
+    width:100%;
+    margin-top:12px;
+    padding:12px;
+    border:1px solid #22d3ee;
+    background:none;
+    color:#22d3ee;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+.save-btn{
+    margin-top:35px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:14px 30px;
+    background:#22d3ee;
+    color:#081018;
+    border:none;
+    border-radius:12px;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+}
