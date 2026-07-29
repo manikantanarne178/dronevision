@@ -6,6 +6,7 @@ import {
   Settings,
   Drone,
   Map,
+  Ruler
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -41,6 +42,21 @@ const menu = [
     icon: Settings,
     path: "/settings",
   },
+  {
+  title: "Upload Drawing",
+  icon: Upload,
+  path: "/drawing",
+},
+{
+  title: "Road Detection",
+  icon: Map,
+  path: "/road-detection",
+},
+{
+  title: "Area Analysis",
+  icon: Ruler,
+  path: "/analysis",
+},
 ];
 
 export default function Sidebar() {
