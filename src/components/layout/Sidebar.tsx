@@ -1,21 +1,39 @@
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   Upload,
-  Box,
+  FileCheck2,
+  ScanSearch,
+  Calculator,
+  ShieldCheck,
+  Leaf,
+  Accessibility,
   FileText,
+  BookOpen,
+  BarChart3,
+  FolderGit2,
+  History,
+  User,
   Settings,
-  Drone,
+  X,
+  Building2,
+  Image,
+  Box,
   Map,
-  Ruler
+  Route,
+  FileBarChart,
+  Camera,
 } from "lucide-react";
 
-import { NavLink } from "react-router-dom";
-
-const menu = [
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+const droneVisionMenu = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
-    path: "/",
+    path: "/drone-dashboard",
   },
   {
     title: "Upload Images",
@@ -29,12 +47,22 @@ const menu = [
   },
   {
     title: "Flight Path",
+    icon: Route,
+    path: "/flight-path",
+  },
+  {
+    title: "Upload Drawing",
+    icon: Upload,
+    path: "/drawing",
+  },
+  {
+    title: "Road Detection",
     icon: Map,
-    path: "/flight",
+    path: "/road-detection",
   },
   {
     title: "Reports",
-    icon: FileText,
+    icon: FileBarChart,
     path: "/reports",
   },
   {
@@ -42,73 +70,168 @@ const menu = [
     icon: Settings,
     path: "/settings",
   },
-  {
-  title: "Upload Drawing",
-  icon: Upload,
-  path: "/drawing",
-},
-{
-  title: "Road Detection",
-  icon: Map,
-  path: "/road-detection",
-},
-{
-  title: "Area Analysis",
-  icon: Ruler,
-  path: "/analysis",
-},
+];
+const autodcrMenu = [
+  { title: "Dashboard", icon: LayoutDashboard, path: "/autodcr-dashboard" },
+  { title: "Upload Drawing", icon: Upload, path: "/autodcr/upload" },
+  { title: "Parsing Progress", icon: FileCheck2, path: "/autodcr/parse" },
+  { title: "Feature Detection", icon: ScanSearch, path: "/autodcr/detect" },
+  { title: "Area Calculations", icon: Calculator, path: "/autodcr/calculate" },
+  { title: "Validation Results", icon: ShieldCheck, path: "/autodcr/validate" },
+  { title: "Green Building", icon: Leaf, path: "/autodcr/green-building" },
+  { title: "Accessibility", icon: Accessibility, path: "/autodcr/accessibility" },
+  { title: "Compliance Report", icon: FileText, path: "/autodcr/report" },
+  { title: "Municipal Rules", icon: BookOpen, path: "/autodcr/rules" },
+  { title: "Metrics Dashboard", icon: BarChart3, path: "/autodcr/metrics" },
+  { title: "Project Management", icon: FolderGit2, path: "/autodcr/projects" },
+  { title: "Submission History", icon: History, path: "/autodcr/history" },
 ];
 
-export default function Sidebar() {
+const accountMenu = [
+  { title: "Profile", icon: User, path: "/profile" },
+  { title: "Settings", icon: Settings, path: "/settings" },
+];
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   return (
-    <aside className="w-72 bg-slate-950 border-r border-slate-800 flex flex-col">
-      <div className="h-20 flex items-center gap-3 px-6 border-b border-slate-800">
-        <Drone className="text-cyan-400" size={34} />
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+        />
+      )}
 
-        <div>
-          <h1 className="font-bold text-xl">DroneVision</h1>
+      {/* Sidebar Container */}
+      <aside
+        className={`fixed lg:static top-0 left-0 bottom-0 z-50 w-72 bg-slate-950 border-r border-slate-800/80 flex flex-col transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800/80 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+              <Building2 className="text-cyan-400" size={24} />
+            </div>
+            <div>
+<h1>DroneVision</h1>
+<p>AI Mapping & Municipal Portal</p>
+            </div>
+          </div>
 
-          <p className="text-xs text-slate-400">
-            3D Mapping Platform
-          </p>
+          {/* Close button for mobile */}
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
         </div>
-      </div>
 
-      <div className="flex-1 p-4">
-        {menu.map((item) => {
-          const Icon = item.icon;
+        {/* Scrollable Navigation List */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 custom-scrollbar">
+          <div>
+  <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+    DroneVision
+  </p>
 
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                `flex items-center gap-4 p-4 rounded-xl mb-2 transition-all duration-300 ${
-                  isActive
-                    ? "bg-cyan-500 text-white shadow-lg"
-                    : "hover:bg-slate-800 text-slate-300"
-                }`
-              }
-            >
-              <Icon size={20} />
+  <div className="space-y-1">
+    {droneVisionMenu.map((item) => {
+      const Icon = item.icon;
 
-              <span>{item.title}</span>
-            </NavLink>
-          );
-        })}
-      </div>
+      return (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          onClick={onClose}
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+              isActive
+                ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+            }`
+          }
+        >
+          <Icon size={18} />
+          <span>{item.title}</span>
+        </NavLink>
+      );
+    })}
+  </div>
+</div>
+          {/* Main AutoDCR Engine Menu */}
+          <div>
+            <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              AutoDCR Engine
+            </p>
+            <div className="space-y-1">
+              {autodcrMenu.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                        isActive
+                          ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shadow-lg shadow-cyan-500/5 font-semibold"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      }`
+                    }
+                  >
+                    <Icon size={18} />
+                    <span>{item.title}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
 
-      <div className="border-t border-slate-800 p-5">
-        <div className="rounded-xl bg-slate-900 p-4">
-          <h3 className="font-semibold">
-            Demo Version
-          </h3>
-
-          <p className="text-sm text-slate-400 mt-2">
-            AI Drone Reconstruction
-          </p>
+          {/* User & Settings */}
+          <div>
+            <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Account & System
+            </p>
+            <div className="space-y-1">
+              {accountMenu.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                        isActive
+                          ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-semibold"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      }`
+                    }
+                  >
+                    <Icon size={18} />
+                    <span>{item.title}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
-    </aside>
+
+        {/* Footer info badge */}
+        <div className="p-4 border-t border-slate-800/80 shrink-0">
+          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-3 flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <div className="overflow-hidden">
+              <p className="text-xs font-bold text-white truncate">AutoDCR Engine 2.0</p>
+              <p className="text-[11px] text-slate-400 truncate">Municipal Scrutiny API Online</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }

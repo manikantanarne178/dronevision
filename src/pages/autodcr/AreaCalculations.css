@@ -1,0 +1,32 @@
+/* Scoped styles for Area Calculations Screen */
+.autodcr-calc-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.autodcr-calc-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .autodcr-calc-metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .autodcr-calc-metric-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.autodcr-calc-card {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}

@@ -1,0 +1,35 @@
+/* Scoped styles for AutoDCR Report Page */
+.autodcr-report-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.autodcr-report-preview-box {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 1rem;
+  padding: 2.5rem;
+  font-family: serif;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  max-width: 50rem;
+  margin: 0 auto;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .autodcr-report-preview-box,
+  .autodcr-report-preview-box * {
+    visibility: visible;
+  }
+  .autodcr-report-preview-box {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+  }
+}
