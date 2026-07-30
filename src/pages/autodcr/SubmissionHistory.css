@@ -1,0 +1,25 @@
+/* Scoped styles for Submission History Screen */
+.autodcr-history-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.autodcr-history-timeline-item {
+  position: relative;
+  padding-left: 2rem;
+  border-left: 2px solid rgba(30, 41, 59, 0.8);
+}
+
+.autodcr-history-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -0.4375rem;
+  top: 0.25rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: #06b6d4;
+  box-shadow: 0 0 10px #06b6d4;
+}

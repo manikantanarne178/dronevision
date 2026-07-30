@@ -1,0 +1,31 @@
+/* Scoped styles for AutoDCR Parsing Progress Screen */
+.autodcr-parse-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.autodcr-parse-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .autodcr-parse-grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.autodcr-parse-terminal {
+  background: #020617;
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  border-radius: 1rem;
+  padding: 1rem;
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: #38bdf8;
+  max-height: 18rem;
+  overflow-y: auto;
+}
