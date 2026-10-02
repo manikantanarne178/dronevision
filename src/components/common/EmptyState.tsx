@@ -1,5 +1,6 @@
 import React from "react";
 import { FolderOpen } from "lucide-react";
+import Button from "./Button";
 
 interface Props {
   title?: string;
@@ -14,20 +15,23 @@ export const EmptyState: React.FC<Props> = ({
   description = "No items or records were found. Try uploading a drawing to start analysis.",
   actionText,
   onAction,
-  icon = <FolderOpen size={48} className="text-slate-500 mb-3" />,
+  icon = <FolderOpen size={40} className="text-slate-400" />,
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-900/60 rounded-2xl border border-slate-800 my-6">
-      {icon}
-      <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
-      <p className="text-slate-400 text-sm max-w-md mb-6 leading-relaxed">{description}</p>
+    <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center bg-white rounded-2xl border border-slate-200/90 shadow-sm my-4">
+      <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-3">
+        {icon}
+      </div>
+      <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1">
+        {title}
+      </h3>
+      <p className="text-slate-500 text-xs sm:text-sm max-w-md mb-5 leading-relaxed">
+        {description}
+      </p>
       {actionText && onAction && (
-        <button
-          onClick={onAction}
-          className="px-6 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-cyan-500/20"
-        >
+        <Button variant="primary" size="md" onClick={onAction}>
           {actionText}
-        </button>
+        </Button>
       )}
     </div>
   );

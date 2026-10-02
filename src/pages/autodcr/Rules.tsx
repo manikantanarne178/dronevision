@@ -1,12 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   BookOpen,
   Search,
   ChevronDown,
   ChevronUp,
   Shield,
-  FileCheck2,
-  Building,
   RefreshCw,
 } from "lucide-react";
 import AutoDCRService from "../../services/autodcrService";
@@ -14,9 +12,42 @@ import type { RuleItem } from "../../types/autodcr";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import ErrorState from "../../components/common/ErrorState";
 import StatusBadge from "../../components/common/StatusBadge";
+import EmptyState from "../../components/common/EmptyState";
 import "./Rules.css";
 
-const OCCUPANCIES = ["Residential", "Commercial", "Industrial", "Mixed Use", "High Rise"];
+const OCCUPANCIES = [
+  "Residential",
+  "Commercial",
+  "Industrial",
+  "Mixed Use",
+  "High Rise",
+];
+
+const normalizeRules = (data: any, currentOccupancy: string): RuleItem[] => {
+  if (!data) return [];
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (data.rules) {
+    if (Array.isArray(data.rules)) {
+      return data.rules;
+    }
+    if (typeof data.rules === "object") {
+      return Object.entries(data.rules).map(([key, val]: [string, any]) => ({
+        id: key,
+        rule_name: val.name || val.rule_name || key.replace(/_/g, " ").toUpperCase(),
+        category: val.category || data.zone || currentOccupancy,
+        min_value: val.min ?? val.min_value ?? val.min_count ?? val.min_area,
+        max_value: val.max ?? val.max_value,
+        unit: val.unit || (val.min_area ? "sq.m" : val.min_count ? "nos" : (val.min || val.max ? "m" : "")),
+        description: val.suggestion || val.description || val.name || "",
+        clause_reference: val.reference_code || val.clause_reference || "NBC 2016 / GDCR",
+        is_mandatory: val.severity === "CRITICAL" || val.severity === "HIGH" || !!val.is_mandatory,
+      }));
+    }
+  }
+  return [];
+};
 
 export default function Rules() {
   const [occupancy, setOccupancy] = useState<string>("Residential");
@@ -27,94 +58,40 @@ export default function Rules() {
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    fetchRules();
-  }, [occupancy]);
-
-  const fetchRules = async () => {
+  const fetchRules = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
       const res = await AutoDCRService.getRules(occupancy);
-      setRules(res || []);
+      const parsed = normalizeRules(res, occupancy);
+      setRules(parsed);
     } catch (err: any) {
       console.error(err);
-      setError(err.response?.data?.detail || err.message || "Failed to load municipal rules");
+      setError(
+        err.response?.data?.detail ||
+          err.message ||
+          "Failed to load municipal rules from server"
+      );
+      setRules([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [occupancy]);
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const defaultRulesList: RuleItem[] = [
-    {
-      id: "r1",
-      rule_name: "Front Setback Requirement",
-      category: "Residential",
-      min_value: "3.0",
-      unit: "meters",
-      description: "Minimum distance required between plot boundary road frontage and building envelope line.",
-      clause_reference: "NBC Clause 4.2.1",
-      is_mandatory: true,
-    },
-    {
-      id: "r2",
-      rule_name: "Permissible FSI / FAR",
-      category: "Residential",
-      max_value: "1.50",
-      description: "Ratio of total built-up area to total plot area.",
-      clause_reference: "Municipal Bye-laws 2024 Sec 8.1",
-      is_mandatory: true,
-    },
-    {
-      id: "r3",
-      rule_name: "Ground Coverage Maximum",
-      category: "Residential",
-      max_value: "50",
-      unit: "%",
-      description: "Maximum percentage of plot area that can be covered by building ground floor footprint.",
-      clause_reference: "NBC Clause 4.3.2",
-      is_mandatory: true,
-    },
-    {
-      id: "r4",
-      rule_name: "Maximum Building Height",
-      category: "Residential",
-      max_value: "15.0",
-      unit: "meters",
-      description: "Maximum allowed building height excluding parapet wall and staircase room.",
-      clause_reference: "Fire Safety Act Sec 12",
-      is_mandatory: true,
-    },
-    {
-      id: "r5",
-      rule_name: "Minimum Parking Slots (ECS)",
-      category: "Residential",
-      min_value: "1 per 100 sq.m",
-      description: "Equivalent Car Spaces required based on total carpet area.",
-      clause_reference: "Traffic & Parking Bye-laws Sec 3",
-      is_mandatory: true,
-    },
-  ];
-
-  const activeList = rules.length > 0 ? rules : defaultRulesList;
-
-  const filteredRules = activeList.filter((r) => {
-    return (
-      r.rule_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.clause_reference.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
-
   if (loading) {
     return (
-      <div className="autodcr-rules-container">
-        <SkeletonLoader type="card" count={4} />
+      <div className="autodcr-rules-container space-y-6">
+        <SkeletonLoader type="card" count={3} />
+        <SkeletonLoader type="table" count={5} />
       </div>
     );
   }
@@ -123,125 +100,134 @@ export default function Rules() {
     return <ErrorState message={error} onRetry={fetchRules} />;
   }
 
+  const filtered = rules.filter((r) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (r.rule_name || "").toLowerCase().includes(term) ||
+      (r.description || "").toLowerCase().includes(term) ||
+      (r.clause_reference || "").toLowerCase().includes(term)
+    );
+  });
+
   return (
-    <div className="autodcr-rules-container">
+    <div className="autodcr-rules-container space-y-6">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <BookOpen className="text-cyan-400" size={28} />
-              Municipal Development Rules & Bye-laws
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <BookOpen className="text-cyan-600" size={22} />
+              Configurable Municipal Rule Engine
             </h1>
-            <StatusBadge status="ACTIVE" />
+            <StatusBadge status="ACTIVE" label={`${rules.length} Rules`} />
           </div>
-          <p className="text-slate-400 text-sm mt-1">
-            Configurable Rule Set for Occupancy: <span className="text-cyan-400 font-bold">{occupancy}</span>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+            Statutory Development Control Regulations & National Building Code Clauses
           </p>
         </div>
 
         <button
           onClick={fetchRules}
-          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all inline-flex items-center gap-2 self-start sm:self-auto"
+          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
         >
           <RefreshCw size={14} /> Refresh Rules
         </button>
       </div>
 
-      {/* Occupancy Tabs */}
-      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900 rounded-2xl border border-slate-800">
+      {/* Occupancy Selector Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {OCCUPANCIES.map((occ) => (
           <button
             key={occ}
             onClick={() => setOccupancy(occ)}
-            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               occupancy === occ
-                ? "bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-cyan-600 text-white shadow-xs"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
             }`}
           >
-            <Building size={16} /> {occ} Rules
+            {occ} Bylaws
           </button>
         ))}
       </div>
 
-      {/* Search Bar */}
-      <div className="relative w-full">
-        <Search size={18} className="absolute left-4 top-3.5 text-slate-400" />
-        <input
-          placeholder="Search rule name, clause reference, or description..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-11 py-3 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
-        />
-      </div>
+      {/* Filter and Rule Accordion List */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-4">
+        <div className="relative w-full sm:w-80">
+          <Search size={15} className="absolute left-3.5 top-2.5 text-slate-400" />
+          <input
+            placeholder="Search rules, clause reference..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 py-1.5 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-cyan-600 transition-colors"
+          />
+        </div>
 
-      {/* Accordion Rules List */}
-      <div className="space-y-3">
-        {filteredRules.map((rule, idx) => {
-          const ruleId = rule.id || `rule_${idx}`;
-          const isExpanded = !!expandedIds[ruleId];
+        {rules.length === 0 ? (
+          <EmptyState
+            title="No Municipal Rules Configured"
+            description={`No rules currently loaded for ${occupancy} occupancy.`}
+          />
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((r, i) => {
+              const ruleId = r.id || `rule-${i}`;
+              const isExpanded = !!expandedIds[ruleId];
+              return (
+                <div
+                  key={ruleId}
+                  className="rounded-xl border border-slate-200 bg-slate-50/50 hover:border-slate-300 transition-all overflow-hidden"
+                >
+                  <div
+                    onClick={() => toggleExpand(ruleId)}
+                    className="p-4 flex items-center justify-between cursor-pointer select-none"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-700 shrink-0">
+                        <Shield size={16} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {r.rule_name}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-mono">
+                          {r.clause_reference || "NBC Standard Clause"}
+                        </p>
+                      </div>
+                    </div>
 
-          return (
-            <div key={ruleId} className="autodcr-rules-accordion-item">
-              <button
-                onClick={() => toggleExpand(ruleId)}
-                className="w-full p-4 sm:p-5 flex items-center justify-between gap-4 text-left transition-all hover:bg-slate-800/40"
-              >
-                <div className="flex items-center gap-3.5 overflow-hidden">
-                  <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
-                    <Shield size={20} className="text-cyan-400" />
-                  </div>
-                  <div className="overflow-hidden">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-white text-base truncate">{rule.rule_name}</h3>
-                      {rule.is_mandatory && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                          MANDATORY
+                    <div className="flex items-center gap-3">
+                      <div className="text-right hidden sm:block">
+                        <span className="text-xs font-mono font-bold text-cyan-800">
+                          {r.min_value ? `>= ${r.min_value}` : ""}
+                          {r.max_value ? `<= ${r.max_value}` : ""} {r.unit || ""}
                         </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">{rule.clause_reference}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs font-mono font-bold text-cyan-400 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800">
-                    {rule.min_value ? `>= ${rule.min_value}` : rule.max_value ? `<= ${rule.max_value}` : "Configured"} {rule.unit || ""}
-                  </span>
-                  {isExpanded ? <ChevronUp size={20} className="text-cyan-400" /> : <ChevronDown size={20} className="text-slate-500" />}
-                </div>
-              </button>
-
-              {isExpanded && (
-                <div className="p-5 pt-0 border-t border-slate-800/80 bg-slate-950/40 space-y-3 text-sm text-slate-300">
-                  <p className="leading-relaxed">{rule.description}</p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-mono">
-                    <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
-                      <span className="text-slate-400 block">Category:</span>
-                      <span className="text-white font-bold">{rule.category || occupancy}</span>
-                    </div>
-                    <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
-                      <span className="text-slate-400 block">Clause Code:</span>
-                      <span className="text-cyan-400 font-bold">{rule.clause_reference}</span>
-                    </div>
-                    <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
-                      <span className="text-slate-400 block">Requirement:</span>
-                      <span className="text-emerald-400 font-bold">
-                        {rule.min_value ? `Min ${rule.min_value}` : rule.max_value ? `Max ${rule.max_value}` : "Mandatory"} {rule.unit || ""}
+                      </div>
+                      <span className="p-1 rounded-md bg-white border border-slate-200 text-slate-400">
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </span>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
 
-        {filteredRules.length === 0 && (
-          <div className="p-12 text-center text-slate-500 bg-slate-900 rounded-2xl border border-slate-800">
-            No rules match search query.
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-2 border-t border-slate-200/80 bg-white text-xs text-slate-600 space-y-2">
+                      <p className="leading-relaxed">{r.description}</p>
+                      <div className="flex flex-wrap gap-4 pt-1 text-[11px] text-slate-500">
+                        <span>Category: <b className="text-slate-700">{r.category || occupancy}</b></span>
+                        {r.unit && <span>Units: <b className="text-slate-700">{r.unit}</b></span>}
+                        {r.is_mandatory && <span className="text-rose-600 font-bold">Mandatory Statutory Condition</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {filtered.length === 0 && rules.length > 0 && (
+              <EmptyState
+                title="No Matching Rules"
+                description="No rule criteria match your search term."
+              />
+            )}
           </div>
         )}
       </div>

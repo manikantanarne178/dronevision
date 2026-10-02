@@ -1,25 +1,7 @@
-/* Scoped styles for Metrics Dashboard Screen */
+/* Scoped styles for Metrics Dashboard */
 .autodcr-metrics-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
   width: 100%;
-}
-
-.autodcr-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: 1.25rem;
-}
-
-@media (min-width: 640px) {
-  .autodcr-metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .autodcr-metrics-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
 }

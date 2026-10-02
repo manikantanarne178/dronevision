@@ -1,61 +1,50 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  ScanSearch,
-  CheckCircle2,
-  AlertCircle,
-  Square,
-  Building,
-  Navigation,
+  Sparkles,
+  Layers,
+  MapPin,
+  Building2,
   Car,
-  Flame,
+  TreePine,
   Sun,
-  Droplet,
-  Trees,
+  Droplets,
   ArrowRight,
   RefreshCw,
-  Layers,
-  Sparkles,
+  ScanSearch,
+  FileCode,
 } from "lucide-react";
 import AutoDCRService from "../../services/autodcrService";
 import type { DetectResponse } from "../../types/autodcr";
-import ProgressBar from "../../components/common/ProgressBar";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import ErrorState from "../../components/common/ErrorState";
 import StatusBadge from "../../components/common/StatusBadge";
+import EmptyState from "../../components/common/EmptyState";
+import AutoDCRProjectPicker from "../../components/autodcr/AutoDCRProjectPicker";
+import AutoDCRProjectBar from "../../components/autodcr/AutoDCRProjectBar";
 import "./FeatureDetection.css";
-
-const FEATURE_ITEMS = [
-  { key: "plot", name: "Detected Plot", icon: Square, desc: "Plot boundary & coordinates" },
-  { key: "building", name: "Detected Building", icon: Building, desc: "Building footprint & setbacks" },
-  { key: "road", name: "Detected Roads", icon: Navigation, desc: "Frontage road width & access" },
-  { key: "parking", name: "Parking Area", icon: Car, desc: "Stilt & open parking slots" },
-  { key: "lift", name: "Lift / Elevator", icon: Layers, desc: "Passenger & service lifts" },
-  { key: "staircase", name: "Fire Staircase", icon: Flame, desc: "Fire escape & main stairwell" },
-  { key: "ramp", name: "Ramp Slope", icon: Navigation, desc: "Vehicular & handicap ramp" },
-  { key: "terrace", name: "Terrace Floor", icon: Building, desc: "Refuge area & parapet" },
-  { key: "basement", name: "Basement Floor", icon: Square, desc: "Single/multi level basement" },
-  { key: "balcony", name: "Balcony / Projection", icon: Building, desc: "Cantilever balcony area" },
-  { key: "solar", name: "Solar Panel Area", icon: Sun, desc: "Rooftop solar installation" },
-  { key: "stp", name: "Sewage Treatment (STP)", icon: Droplet, desc: "STP plant area" },
-  { key: "rwh", name: "Rain Water Harvesting", icon: Droplet, desc: "RWH pit & recharge well" },
-  { key: "landscape", name: "Landscape / Open Green", icon: Trees, desc: "Softscape & green area" },
-];
 
 export default function FeatureDetection() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const fileIdParam = searchParams.get("file_id") || localStorage.getItem("current_file_id") || "drawing_01.dxf";
+
+  const rawId =
+    searchParams.get("file_id") ||
+    localStorage.getItem("current_file_id") ||
+    "";
+  const fileIdParam = rawId.includes("\\") || rawId.includes("/")
+    ? rawId.split(/[\\/]/).pop() || ""
+    : rawId;
 
   const [detectResult, setDetectResult] = useState<DetectResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    runDetection();
-  }, [fileIdParam]);
-
-  const runDetection = async () => {
+  const runDetection = useCallback(async () => {
+    if (!fileIdParam) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -64,26 +53,46 @@ export default function FeatureDetection() {
       setDetectResult(res);
     } catch (err: any) {
       console.error(err);
-      setError(err.response?.data?.detail || err.message || "Feature detection failed");
+      const msg = err.response?.data?.detail || err.message || "Feature detection failed";
+      setError(msg);
+      if (err.response?.status === 404) {
+        localStorage.removeItem("current_file_id");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [fileIdParam]);
+
+  useEffect(() => {
+    runDetection();
+  }, [runDetection]);
 
   const handleProceedToCalculate = () => {
     navigate(`/autodcr/calculate?file_id=${encodeURIComponent(fileIdParam)}`);
   };
 
+  if (!fileIdParam) {
+    return (
+      <div className="autodcr-detect-container space-y-6">
+        <AutoDCRProjectPicker
+          title="Select Project for Automatic Spatial Feature Detection"
+          subtitle="Choose any registered architectural drawing to identify plot bounds, building footprints, and room allocations."
+          onSelectProject={(id) => navigate(`/autodcr/detect?file_id=${encodeURIComponent(id)}`)}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="autodcr-detect-container">
-        <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <ScanSearch className="text-cyan-400 animate-spin" size={24} />
+      <div className="autodcr-detect-container space-y-6">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+          <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+            <ScanSearch className="text-cyan-600 animate-spin" size={20} />
             Running Automatic Spatial Detection Engine...
           </h2>
-          <p className="text-sm text-slate-400">
-            Analyzing 14 key municipal architectural features & confidence scores...
+          <p className="text-xs text-slate-500">
+            Analyzing municipal architectural features & confidence scores...
           </p>
         </div>
         <SkeletonLoader type="card" count={8} />
@@ -92,89 +101,118 @@ export default function FeatureDetection() {
   }
 
   if (error) {
-    return <ErrorState message={error} onRetry={runDetection} />;
+    return (
+      <div className="autodcr-detect-container space-y-6">
+        <ErrorState
+          message={error}
+          onRetry={runDetection}
+          actionText="Select Another Project"
+          onAction={() => navigate("/autodcr/projects")}
+        />
+      </div>
+    );
   }
 
   const detectionMap = detectResult?.detection_results || {};
+  const featureKeys = Object.keys(detectionMap);
+
+  const FEATURE_ICONS: Record<string, any> = {
+    plot: MapPin,
+    building: Building2,
+    road: Layers,
+    parking: Car,
+    landscape: TreePine,
+    solar: Sun,
+    rwh: Droplets,
+  };
 
   return (
-    <div className="autodcr-detect-container">
+    <div className="autodcr-detect-container space-y-6">
+      <AutoDCRProjectBar
+        currentProjectId={fileIdParam}
+        onProjectChange={(id) => navigate(`/autodcr/detect?file_id=${encodeURIComponent(id)}`)}
+      />
+
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <Sparkles className="text-cyan-400" size={28} />
-              Spatial Feature Detection Engine
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Sparkles className="text-cyan-600" size={22} />
+              Automatic Spatial Feature Detection
             </h1>
-            <StatusBadge status="DETECTED" />
+            <StatusBadge status="DETECTED" label={`${featureKeys.length} Features`} />
           </div>
-          <p className="text-slate-400 text-sm mt-1">
-            File ID: <span className="text-cyan-400 font-mono">{fileIdParam}</span>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5 flex items-center gap-1.5">
+            Target Drawing: <span className="text-cyan-700 font-mono font-semibold flex items-center gap-1"><FileCode className="w-3.5 h-3.5" />{fileIdParam}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={runDetection}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all inline-flex items-center gap-2"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer"
+            title="Re-run Detection"
           >
-            <RefreshCw size={14} /> Re-detect
+            <RefreshCw size={15} />
           </button>
           <button
             onClick={handleProceedToCalculate}
-            className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition-all inline-flex items-center gap-2 shadow-lg shadow-cyan-500/20"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer"
           >
-            Proceed to Area Calculations <ArrowRight size={16} />
+            Calculate Spatial Metrics <ArrowRight size={16} />
           </button>
         </div>
       </div>
 
-      {/* Feature Cards Grid */}
-      <div className="autodcr-detect-grid">
-        {FEATURE_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const rawData = detectionMap[item.key] || {};
-          const isDetected = rawData.detected !== false;
-          const confidence = typeof rawData.confidence === "number" ? rawData.confidence : (isDetected ? 0.95 : 0.0);
-          const confidencePct = Math.round(confidence * 100);
+      {/* Detected Feature Cards Grid */}
+      {featureKeys.length === 0 ? (
+        <EmptyState
+          title="No Features Detected"
+          description="The detection engine did not find recognizable CAD layers or polyline boundaries in this drawing."
+        />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {featureKeys.map((key) => {
+            const feat = detectionMap[key];
+            const Icon = FEATURE_ICONS[key] || Layers;
+            const isDetected = feat && feat.detected !== false;
+            const confidence = feat?.confidence !== undefined ? Math.round(feat.confidence * 100) : 95;
 
-          return (
-            <div key={item.key} className="autodcr-detect-card">
-              <div>
-                <div className="flex justify-between items-start mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
-                    <Icon className="text-cyan-400" size={20} />
+            return (
+              <div
+                key={key}
+                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 hover:border-cyan-400 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-600">
+                    <Icon size={20} />
                   </div>
-                  {isDetected ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                      <CheckCircle2 size={14} /> Detected
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/30">
-                      <AlertCircle size={14} /> Not Detected
-                    </span>
-                  )}
+                  <StatusBadge status={isDetected ? "DETECTED" : "NOT_FOUND"} size="sm" />
                 </div>
 
-                <h3 className="font-bold text-white text-base">{item.name}</h3>
-                <p className="text-xs text-slate-400 mt-1">{item.desc}</p>
-              </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider">
+                    {key.replace("_", " ")}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {isDetected
+                      ? `Layer: ${feat?.layer || key.toUpperCase()}`
+                      : "Not identified in drawing CAD layers"}
+                  </p>
+                </div>
 
-              <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                <ProgressBar
-                  progress={confidencePct}
-                  label="Detection Confidence"
-                  color={confidencePct > 80 ? "emerald" : confidencePct > 50 ? "amber" : "rose"}
-                />
-                {rawData.details && (
-                  <p className="text-xs text-slate-400 font-mono truncate">{rawData.details}</p>
+                {isDetected && (
+                  <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
+                    <span className="text-slate-400">Confidence:</span>
+                    <span className="font-bold text-cyan-700">{confidence}%</span>
+                  </div>
                 )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

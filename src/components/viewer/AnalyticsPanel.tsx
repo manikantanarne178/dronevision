@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
-import { Image, HardDrive, Ruler, Map, Box } from "lucide-react";
+import { Image as ImageIcon, HardDrive, Ruler, Map, Box } from "lucide-react";
 
 interface Analytics {
   images: number;
@@ -54,7 +54,7 @@ export default function AnalyticsPanel() {
   if (!projectId) return null;
 
   const rows = [
-    { icon: Image, label: "Images", value: String(analytics.images) },
+    { icon: ImageIcon, label: "Images", value: String(analytics.images) },
     { icon: HardDrive, label: "Storage", value: analytics.storage },
     { icon: Ruler, label: "Width", value: `${(analytics.width * 100).toFixed(1)} cm` },
     { icon: Ruler, label: "Length", value: `${(analytics.length * 100).toFixed(1)} cm` },
@@ -64,15 +64,18 @@ export default function AnalyticsPanel() {
   ];
 
   return (
-    <div className="bg-black/70 backdrop-blur rounded-xl p-3 text-white text-xs w-44 space-y-1 border border-white/10">
-      <div className="text-cyan-400 font-semibold mb-2 text-sm">Analytics</div>
+    <div className="bg-white/95 backdrop-blur-md rounded-xl p-3 text-slate-800 text-xs w-48 space-y-1.5 border border-slate-200 shadow-lg">
+      <div className="text-cyan-700 font-semibold mb-2 text-xs uppercase tracking-wider flex items-center justify-between border-b border-slate-100 pb-1.5">
+        <span>Survey Diagnostics</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+      </div>
       {rows.map(({ icon: Icon, label, value }) => (
-        <div key={label} className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1 text-slate-400">
-            <Icon size={12} />
+        <div key={label} className="flex items-center justify-between gap-2 text-[11px]">
+          <div className="flex items-center gap-1.5 text-slate-500">
+            <Icon size={12} className="text-slate-400" />
             <span>{label}</span>
           </div>
-          <span className="font-medium">{value}</span>
+          <span className="font-semibold text-slate-900 font-mono">{value}</span>
         </div>
       ))}
     </div>

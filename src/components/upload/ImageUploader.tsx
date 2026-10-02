@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Image } from "lucide-react";
+import { UploadCloud, Image as ImageIcon, FileCheck, ShieldCheck } from "lucide-react";
 
 interface Props {
   onFilesSelected: (files: File[]) => void;
@@ -33,33 +33,25 @@ export default function ImageUploader({ onFilesSelected }: Props) {
   return (
     <div
       {...getRootProps()}
-      className={`rounded-3xl border-2 border-dashed transition-all duration-300 cursor-pointer
-      ${
+      className={`rounded-2xl border-2 border-dashed transition-all duration-200 cursor-pointer bg-white ${
         isDragActive
-          ? "border-cyan-400 bg-cyan-500/10 scale-[1.01]"
-          : "border-slate-700 bg-slate-900 hover:border-cyan-400 hover:bg-slate-800"
+          ? "border-cyan-500 bg-cyan-50/50 scale-[1.005]"
+          : "border-slate-300 hover:border-cyan-500 hover:bg-slate-50/60"
       }`}
     >
-      <input
-        id="imageInput"
-        {...getInputProps()}
-      />
+      <input id="imageInput" {...getInputProps()} />
 
-      <div className="py-20 px-10 text-center">
-
-        <div className="w-24 h-24 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto">
-          <UploadCloud
-            size={50}
-            className="text-cyan-400"
-          />
+      <div className="py-14 px-6 text-center max-w-xl mx-auto">
+        <div className="w-16 h-16 rounded-2xl bg-cyan-50 text-cyan-600 border border-cyan-100 flex items-center justify-center mx-auto shadow-xs">
+          <UploadCloud className="w-8 h-8" />
         </div>
 
-        <h2 className="text-3xl font-bold mt-8">
-          Drag & Drop Drone Images
+        <h2 className="text-lg font-semibold text-slate-900 mt-5">
+          Select or Drag Aerial Drone Imagery
         </h2>
 
-        <p className="text-slate-400 mt-4">
-          Upload high-quality aerial survey images for 3D reconstruction
+        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+          Upload geotagged JPG, PNG, or TIFF files with at least 60% overlap for high-precision photogrammetry reconstruction.
         </p>
 
         <button
@@ -68,38 +60,35 @@ export default function ImageUploader({ onFilesSelected }: Props) {
             e.stopPropagation();
             open();
           }}
-          className="mt-8 bg-cyan-500 hover:bg-cyan-600 transition px-8 py-3 rounded-xl font-semibold shadow-lg shadow-cyan-500/30"
+          className="mt-6 bg-cyan-600 hover:bg-cyan-700 text-white transition px-5 py-2.5 rounded-xl font-medium text-xs shadow-xs inline-flex items-center gap-2 cursor-pointer"
         >
-          Browse Images
+          <UploadCloud className="w-4 h-4" />
+          Browse Files
         </button>
 
-        <div className="flex justify-center gap-3 mt-8 flex-wrap">
-
-          <span className="bg-slate-800 px-4 py-2 rounded-full text-sm flex items-center gap-2">
-            <Image size={16} />
-            JPG
+        <div className="flex justify-center gap-2 mt-6 flex-wrap">
+          <span className="bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1 rounded-md text-xs font-medium flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+            JPG / JPEG
           </span>
-
-          <span className="bg-slate-800 px-4 py-2 rounded-full text-sm flex items-center gap-2">
-            <Image size={16} />
+          <span className="bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1 rounded-md text-xs font-medium flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
             PNG
           </span>
-
-          <span className="bg-slate-800 px-4 py-2 rounded-full text-sm flex items-center gap-2">
-            <Image size={16} />
-            TIFF
+          <span className="bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1 rounded-md text-xs font-medium flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+            TIFF (GeoTIFF)
           </span>
-
         </div>
 
-        <p className="text-slate-500 text-sm mt-8">
-          Drag images anywhere inside this box or click{" "}
-          <span className="text-cyan-400 font-medium">
-            Browse Images
-          </span>{" "}
-          to select files.
-        </p>
-
+        <div className="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-slate-100 text-[11px] text-slate-400">
+          <span className="flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> EXIF Geotags Preserved
+          </span>
+          <span className="flex items-center gap-1">
+            <FileCheck className="w-3.5 h-3.5 text-cyan-500" /> Max 2GB per batch
+          </span>
+        </div>
       </div>
     </div>
   );

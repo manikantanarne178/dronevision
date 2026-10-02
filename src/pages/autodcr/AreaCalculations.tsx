@@ -1,39 +1,47 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Calculator,
   Square,
   Building2,
   Ruler,
-  Car,
-  Maximize2,
-  Trees,
+  Layers,
   ArrowRight,
   RefreshCw,
-  Sliders,
+  FileCode,
 } from "lucide-react";
 import AutoDCRService from "../../services/autodcrService";
 import type { CalculateResponse } from "../../types/autodcr";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import ErrorState from "../../components/common/ErrorState";
 import StatusBadge from "../../components/common/StatusBadge";
+import AutoDCRProjectPicker from "../../components/autodcr/AutoDCRProjectPicker";
+import AutoDCRProjectBar from "../../components/autodcr/AutoDCRProjectBar";
 import "./AreaCalculations.css";
 
 export default function AreaCalculations() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const fileIdParam = searchParams.get("file_id") || localStorage.getItem("current_file_id") || "drawing_01.dxf";
 
-  const [floorCount, setFloorCount] = useState<number>(3);
+  const rawId =
+    searchParams.get("file_id") ||
+    localStorage.getItem("current_file_id") ||
+    "";
+  const fileIdParam = rawId.includes("\\") || rawId.includes("/")
+    ? rawId.split(/[\\/]/).pop() || ""
+    : rawId;
+  const initialFloor = Number(searchParams.get("floor_count")) || 1;
+
+  const [floorCount, setFloorCount] = useState<number>(initialFloor);
   const [calcResult, setCalcResult] = useState<CalculateResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    runCalculations();
-  }, [fileIdParam, floorCount]);
-
-  const runCalculations = async () => {
+  const runCalculations = useCallback(async () => {
+    if (!fileIdParam) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -42,19 +50,43 @@ export default function AreaCalculations() {
       setCalcResult(res);
     } catch (err: any) {
       console.error(err);
-      setError(err.response?.data?.detail || err.message || "Area calculations failed");
+      const msg = err.response?.data?.detail || err.message || "Calculation failed";
+      setError(msg);
+      if (err.response?.status === 404) {
+        localStorage.removeItem("current_file_id");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [fileIdParam, floorCount]);
+
+  useEffect(() => {
+    runCalculations();
+  }, [runCalculations]);
 
   const handleProceedToValidate = () => {
-    navigate(`/autodcr/validate?file_id=${encodeURIComponent(fileIdParam)}&floor_count=${floorCount}`);
+    navigate(
+      `/autodcr/validate?file_id=${encodeURIComponent(
+        fileIdParam
+      )}&floor_count=${floorCount}`
+    );
   };
+
+  if (!fileIdParam) {
+    return (
+      <div className="autodcr-calc-container space-y-6">
+        <AutoDCRProjectPicker
+          title="Select Project for Area & FSI Calculations"
+          subtitle="Choose any registered municipal drawing project to compute plot coverage, built-up areas, and setbacks."
+          onSelectProject={(id) => navigate(`/autodcr/calculate?file_id=${encodeURIComponent(id)}`)}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
-      <div className="autodcr-calc-container">
+      <div className="autodcr-calc-container space-y-6">
         <SkeletonLoader type="card" count={4} />
         <SkeletonLoader type="table" count={4} />
       </div>
@@ -62,222 +94,211 @@ export default function AreaCalculations() {
   }
 
   if (error) {
-    return <ErrorState message={error} onRetry={runCalculations} />;
+    return (
+      <div className="autodcr-calc-container space-y-6">
+        <ErrorState
+          message={error}
+          onRetry={runCalculations}
+          actionText="Select Another Project"
+          onAction={() => navigate("/autodcr/projects")}
+        />
+      </div>
+    );
   }
 
   const areas = calcResult?.areas || {
-    plot_area: 1250.0,
-    ground_coverage_area: 450.0,
-    built_up_area: 1350.0,
-    fsi_achieved: 1.08,
-    fsi_permissible: 1.5,
-    far_achieved: 1.08,
-    open_area: 800.0,
-    landscape_area: 200.0,
+    plot_area: 0,
+    ground_coverage_area: 0,
+    built_up_area: 0,
+    fsi_achieved: 0,
+    fsi_permissible: 0,
+    far_achieved: 0,
+    open_area: 0,
+    landscape_area: 0,
   };
 
   const heights = calcResult?.heights || {
-    total_height: 12.5,
-    floor_height: 3.5,
+    total_height: 0,
+    floor_height: 0,
     floor_count: floorCount,
-    stilt_height: 2.4,
-    parapet_height: 1.2,
+    stilt_height: 0,
+    parapet_height: 0,
   };
 
   const parking = calcResult?.parking || {
-    required_slots: 12,
-    provided_slots: 15,
-    visitor_slots: 2,
-    handicapped_slots: 1,
-    ramp_slope_ratio: 10,
-    status: "PASS",
+    required_slots: 0,
+    provided_slots: 0,
+    visitor_slots: 0,
+    handicapped_slots: 0,
+    ramp_slope_ratio: 0,
+    status: "PENDING",
   };
 
   return (
-    <div className="autodcr-calc-container">
+    <div className="autodcr-calc-container space-y-6">
+      <AutoDCRProjectBar
+        currentProjectId={fileIdParam}
+        onProjectChange={(id) => navigate(`/autodcr/calculate?file_id=${encodeURIComponent(id)}`)}
+      />
+
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <Calculator className="text-cyan-400" size={28} />
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Calculator className="text-cyan-600" size={22} />
               Area, Height & Parking Calculations
             </h1>
             <StatusBadge status="CALCULATED" />
           </div>
-          <p className="text-slate-400 text-sm mt-1">
-            File ID: <span className="text-cyan-400 font-mono">{fileIdParam}</span>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5 flex items-center gap-1.5">
+            File Reference: <span className="text-cyan-700 font-mono font-semibold flex items-center gap-1"><FileCode className="w-3.5 h-3.5" />{fileIdParam}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-            <Sliders size={16} className="text-slate-400" />
-            <span className="text-xs text-slate-300 font-semibold">Floors:</span>
-            <select
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+            <span className="text-xs font-bold text-slate-700">Floors:</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
               value={floorCount}
-              onChange={(e) => setFloorCount(Number(e.target.value))}
-              className="bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded border border-slate-700"
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20].map((f) => (
-                <option key={f} value={f}>
-                  {f} Floors
-                </option>
-              ))}
-            </select>
+              onChange={(e) => setFloorCount(Math.max(1, Number(e.target.value)))}
+              className="w-12 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-bold text-center text-slate-900 focus:outline-none"
+            />
           </div>
 
           <button
-            onClick={handleProceedToValidate}
-            className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition-all inline-flex items-center gap-2 shadow-lg shadow-cyan-500/20"
+            onClick={runCalculations}
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer"
+            title="Recalculate Metrics"
           >
-            Validate Municipal Rules <ArrowRight size={16} />
+            <RefreshCw size={15} />
+          </button>
+
+          <button
+            onClick={handleProceedToValidate}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer"
+          >
+            Proceed to Bylaws Scrutiny <ArrowRight size={16} />
           </button>
         </div>
       </div>
 
-      {/* Primary KPI Grid */}
-      <div className="autodcr-calc-metric-grid">
-        <div className="autodcr-calc-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Plot Area</p>
-              <h2 className="text-3xl font-extrabold text-white mt-2">
-                {areas.plot_area?.toFixed(2)} <span className="text-sm font-normal text-slate-400">sq.m</span>
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              <Square size={24} />
-            </div>
+      {/* KPI Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Total Plot Area
+            </p>
+            <h3 className="text-2xl font-black text-slate-900 font-mono mt-1">
+              {Number(areas.plot_area || 0).toFixed(2)}{" "}
+              <span className="text-xs font-normal text-slate-400">sq.m</span>
+            </h3>
+            <span className="text-[11px] text-cyan-600 font-semibold">Gross Cadastral Area</span>
           </div>
-          <p className="text-xs text-slate-400 mt-3">Total surveyed site area</p>
+          <div className="w-12 h-12 rounded-2xl bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-600">
+            <Square size={24} />
+          </div>
         </div>
 
-        <div className="autodcr-calc-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Built-Up Area</p>
-              <h2 className="text-3xl font-extrabold text-cyan-300 mt-2">
-                {areas.built_up_area?.toFixed(2)} <span className="text-sm font-normal text-slate-400">sq.m</span>
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <Building2 size={24} />
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Built-up Area (BUA)
+            </p>
+            <h3 className="text-2xl font-black text-slate-900 font-mono mt-1">
+              {Number(areas.built_up_area || 0).toFixed(2)}{" "}
+              <span className="text-xs font-normal text-slate-400">sq.m</span>
+            </h3>
+            <span className="text-[11px] text-emerald-600 font-semibold">Total Cumulative Area</span>
           </div>
-          <p className="text-xs text-slate-400 mt-3">Total constructed floor area</p>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+            <Building2 size={24} />
+          </div>
         </div>
 
-        <div className="autodcr-calc-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">FSI / FAR Achieved</p>
-              <h2 className="text-3xl font-extrabold text-emerald-400 mt-2">
-                {areas.fsi_achieved?.toFixed(2)}
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Maximize2 size={24} />
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Achieved FSI / FAR
+            </p>
+            <h3 className="text-2xl font-black text-slate-900 font-mono mt-1">
+              {Number(areas.fsi_achieved || areas.far_achieved || 0).toFixed(2)}
+            </h3>
+            <span className="text-[11px] text-indigo-600 font-semibold">
+              Permissible: {Number(areas.fsi_permissible || 1.5).toFixed(2)}
+            </span>
           </div>
-          <p className="text-xs text-emerald-400 mt-3">
-            Permissible Max FSI: {areas.fsi_permissible || 1.5}
-          </p>
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+            <Layers size={24} />
+          </div>
         </div>
 
-        <div className="autodcr-calc-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ground Coverage</p>
-              <h2 className="text-3xl font-extrabold text-amber-400 mt-2">
-                {areas.ground_coverage_area?.toFixed(2)} <span className="text-sm font-normal text-slate-400">sq.m</span>
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <Ruler size={24} />
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Building Height
+            </p>
+            <h3 className="text-2xl font-black text-slate-900 font-mono mt-1">
+              {Number(heights.total_height || 0).toFixed(1)}{" "}
+              <span className="text-xs font-normal text-slate-400">m</span>
+            </h3>
+            <span className="text-[11px] text-amber-600 font-semibold">
+              {heights.floor_count} Floors Verified
+            </span>
           </div>
-          <p className="text-xs text-slate-400 mt-3">
-            {((areas.ground_coverage_area / areas.plot_area) * 100).toFixed(1)}% of Plot Area
-          </p>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+            <Ruler size={24} />
+          </div>
         </div>
       </div>
 
-      {/* Detailed Breakdowns Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Height & Floors */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-6 space-y-4">
-          <h3 className="font-bold text-white text-lg flex items-center gap-2">
-            <Ruler className="text-cyan-400" size={20} />
-            Building Height Breakdown
+      {/* Detailed Tables Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Area Metrics */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-4">
+          <h3 className="font-bold text-slate-900 text-sm sm:text-base pb-2 border-b border-slate-100">
+            Spatial Area Breakdown
           </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Total Building Height</span>
-              <span className="font-bold text-white">{heights.total_height} m</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Floor Count</span>
-              <span className="font-bold text-cyan-400">{heights.floor_count} Floors</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Floor Height (Clear)</span>
-              <span className="font-bold text-white">{heights.floor_height} m</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Stilt Height</span>
-              <span className="font-bold text-white">{heights.stilt_height || 2.4} m</span>
-            </div>
+          <div className="space-y-2.5 text-xs sm:text-sm">
+            {[
+              { label: "Gross Site / Plot Area", val: `${Number(areas.plot_area || 0).toFixed(2)} sq.m` },
+              { label: "Ground Coverage Footprint", val: `${Number(areas.ground_coverage_area || 0).toFixed(2)} sq.m` },
+              { label: "Cumulative Built-Up Area (BUA)", val: `${Number(areas.built_up_area || 0).toFixed(2)} sq.m` },
+              { label: "Net Open Space Surrounding", val: `${Number(areas.open_area || 0).toFixed(2)} sq.m` },
+              { label: "Softscape & Landscape Area", val: `${Number(areas.landscape_area || 0).toFixed(2)} sq.m` },
+              { label: "Floor Space Index (FSI) Ratio", val: Number(areas.fsi_achieved || areas.far_achieved || 0).toFixed(3) },
+            ].map((row, i) => (
+              <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-100 last:border-b-0">
+                <span className="text-slate-600">{row.label}</span>
+                <span className="font-mono font-bold text-slate-900">{row.val}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Parking & Ramp */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-6 space-y-4">
-          <h3 className="font-bold text-white text-lg flex items-center gap-2">
-            <Car className="text-emerald-400" size={20} />
-            Parking & Access Provisions
+        {/* Height & Parking Metrics */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-4">
+          <h3 className="font-bold text-slate-900 text-sm sm:text-base pb-2 border-b border-slate-100">
+            Height & Parking Allocation
           </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Required Slots</span>
-              <span className="font-bold text-white">{parking.required_slots} ECS</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Provided Slots</span>
-              <span className="font-bold text-emerald-400">{parking.provided_slots} ECS</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Ramp Slope Ratio</span>
-              <span className="font-bold text-white">1 : {parking.ramp_slope_ratio || 10}</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Parking Compliance</span>
-              <StatusBadge status={parking.status || "PASS"} />
-            </div>
-          </div>
-        </div>
-
-        {/* Open & Green Area */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-6 space-y-4">
-          <h3 className="font-bold text-white text-lg flex items-center gap-2">
-            <Trees className="text-amber-400" size={20} />
-            Open Space & Landscape
-          </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Open Ground Area</span>
-              <span className="font-bold text-white">{areas.open_area?.toFixed(2)} sq.m</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Landscape Green Area</span>
-              <span className="font-bold text-amber-400">{areas.landscape_area?.toFixed(2)} sq.m</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm">
-              <span className="text-slate-400">Softscape Ratio</span>
-              <span className="font-bold text-white">
-                {((areas.landscape_area / areas.plot_area) * 100).toFixed(1)}%
-              </span>
-            </div>
+          <div className="space-y-2.5 text-xs sm:text-sm">
+            {[
+              { label: "Total Structure Height (AGL)", val: `${Number(heights.total_height || 0).toFixed(2)} m` },
+              { label: "Average Floor-to-Floor Height", val: `${Number(heights.floor_height || 0).toFixed(2)} m` },
+              { label: "Stilt / Ground Clearance", val: `${Number(heights.stilt_height || 0).toFixed(2)} m` },
+              { label: "Required Parking Slots (NBC)", val: `${parking.required_slots || 0} ECS` },
+              { label: "Provided Parking Slots", val: `${parking.provided_slots || 0} ECS` },
+              { label: "Visitor & Accessible Slots", val: `${(parking.visitor_slots || 0) + (parking.handicapped_slots || 0)} ECS` },
+            ].map((row, i) => (
+              <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-100 last:border-b-0">
+                <span className="text-slate-600">{row.label}</span>
+                <span className="font-mono font-bold text-slate-900">{row.val}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

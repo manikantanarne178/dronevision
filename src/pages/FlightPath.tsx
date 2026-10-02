@@ -8,52 +8,58 @@ import FlightStats from "../components/flight/FlightStats";
 import { useParams } from "react-router-dom";
 import ProjectSelector from "../components/common/ProjectSelector";
 import type { FlightImageInfo } from "../components/flight/FlightSidebar";
+import { Navigation } from "lucide-react";
 
 const FlightPath = () => {
+  const { projectId } = useParams();
   const [flightImages, setFlightImages] = useState<FlightImageInfo[]>([]);
-  const [selectedImage, setSelectedImage] =
-    useState<FlightImageInfo | null>(null);
-const { projectId } = useParams();
+  const [selectedImage, setSelectedImage] = useState<FlightImageInfo | null>(null);
 
-if (!projectId) {
-  return (
-    <ProjectSelector
-      title="Flight Path"
-      subtitle="Select a project to view its flight path"
-      navigateTo="/flight-path"
-    />
-  );
-}
   useEffect(() => {
-const loadGPS = async () => {
-  try {
-    const response = await axios.get(
-      "http://127.0.0.1:8000/gps/"
-    );
+    if (!projectId) return;
 
-    const locations = response.data.locations;
+    const loadGPS = async () => {
+      try {
+        const response = await axios.get("http://127.0.0.1:8000/gps/");
+        const locations = response.data.locations || [];
+        setFlightImages(locations);
 
-    setFlightImages(locations);
-
-    if (locations.length > 0) {
-      setSelectedImage(locations[0]);
-    }
-  } catch (error) {
-    console.error("Failed to load GPS data:", error);
-  }
-};
+        if (locations.length > 0) {
+          setSelectedImage(locations[0]);
+        }
+      } catch (error) {
+        console.error("Failed to load GPS data:", error);
+      }
+    };
 
     loadGPS();
-  }, []);
+  }, [projectId]);
+
+  if (!projectId) {
+    return (
+      <ProjectSelector
+        title="Drone Flight Trajectory"
+        subtitle="Select an aerial photogrammetry survey to inspect mission waypoints and geotagged captures"
+        navigateTo="/flight-path"
+      />
+    );
+  }
 
   return (
     <div className="flight-page">
       <div className="flight-header">
         <div>
-          <h1>Flight Path</h1>
-
+          <div className="flex items-center gap-2 mb-1">
+            <span className="p-1 rounded-md bg-cyan-50 text-cyan-600 border border-cyan-200">
+              <Navigation className="w-4 h-4" />
+            </span>
+            <span className="text-xs font-semibold text-cyan-700 uppercase tracking-wider">
+              UAV Telemetry & Spatial Waypoints
+            </span>
+          </div>
+          <h1>Flight Path & Geotag Mapping</h1>
           <p>
-            Visualize drone flight trajectory and captured GPS image locations.
+            Reconstructed aerial flight trajectory with synchronized GNSS/IMU sensor locations.
           </p>
         </div>
       </div>
