@@ -5,7 +5,7 @@ export const API_BASE_URL =
 
 const API = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 45000,
+  timeout: 60000, // 60s default for standard JSON requests
 });
 
 API.interceptors.request.use(
@@ -23,14 +23,12 @@ API.interceptors.request.use(
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle cold start / network connectivity issues gracefully
     if (error.code === "ECONNABORTED" || !error.response) {
       console.warn(
         "Render backend connection timeout or cold-start waking up:",
         error.message
       );
     } else if (error.response?.status === 401) {
-      // If unauthorized and not on login page, clear token
       if (
         !window.location.pathname.includes("/login") &&
         !window.location.pathname.includes("/register")
@@ -41,5 +39,20 @@ API.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Ping backend health endpoint to check wakefulness and avoid cold-start upload timeouts
+ */
+export async function pingBackendHealth(): Promise<boolean> {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/health`, {
+      timeout: 15000,
+    });
+    return res.status === 200;
+  } catch (err) {
+    console.warn("Backend health ping failed or waking up:", err);
+    return false;
+  }
+}
 
 export default API;
