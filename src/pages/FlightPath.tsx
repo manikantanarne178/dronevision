@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import "./FlightPath.css";
 
 import FlightMap from "../components/flight/FlightMap";
@@ -20,7 +20,7 @@ const FlightPath = () => {
 
     const loadGPS = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/gps/");
+        const response = await API.get("/gps/");
         const locations = response.data.locations || [];
         setFlightImages(locations);
 
@@ -28,7 +28,7 @@ const FlightPath = () => {
           setSelectedImage(locations[0]);
         }
       } catch (error) {
-        console.error("Failed to load GPS data:", error);
+        console.error("Failed to load GPS data from live backend:", error);
       }
     };
 

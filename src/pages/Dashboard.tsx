@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
+import API from "../api";
 import {
   Image,
   Box,
@@ -13,8 +13,6 @@ import {
 
 import StatCard from "../components/dashboard/StatCard";
 import RecentProjects from "../components/dashboard/RecentProjects";
-
-const API = "http://127.0.0.1:8000";
 
 interface Project {
   project_id: string;
@@ -36,19 +34,14 @@ export default function Dashboard() {
 
   const loadProjects = async () => {
     try {
-      const token = localStorage.getItem("token");
-
-      const res = await axios.get(`${API}/api/projects/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.data.success) {
+      const res = await API.get("/api/projects/");
+      if (res.data?.success && Array.isArray(res.data.projects)) {
         setProjects(res.data.projects);
+      } else if (Array.isArray(res.data)) {
+        setProjects(res.data);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load projects from live backend:", err);
     } finally {
       setLoading(false);
     }

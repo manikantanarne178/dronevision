@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../../api";
 import {
   Image as ImageIcon,
   Ruler,
@@ -44,25 +44,15 @@ export default function ViewerSidebar() {
 
   async function loadAnalytics() {
     try {
-      const token = localStorage.getItem("token");
-
       const [modelResponse, analyticsResponse] = await Promise.all([
-        axios.get(
-          `http://127.0.0.1:8000/api/projects/${projectId}/model`,
+        API.get(
+          `/api/projects/${projectId}/model`,
           {
             responseType: "blob",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
           }
         ),
-        axios.get(
-          `http://127.0.0.1:8000/api/analytics/${projectId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+        API.get(
+          `/api/analytics/${projectId}`
         ),
       ]);
 
