@@ -4,8 +4,9 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
-import API from "../api";
+import API, { pingBackendHealth } from "../api";
 import {
   type DroneSurvey,
   buildSurveyFromFiles,
@@ -16,16 +17,27 @@ import {
   generateSurveyDXF,
 } from "../services/droneSurveyService";
 
+export interface UploadProgressDetail {
+  stage: string;
+  percentage: number;
+  loadedBytes?: number;
+  totalBytes?: number;
+  loadedMB?: string;
+  totalMB?: string;
+  uploadSpeed?: string;
+}
+
 interface DroneSurveyContextType {
   surveys: DroneSurvey[];
   activeSurvey: DroneSurvey | null;
   activeSurveyId: string | null;
   loading: boolean;
+  isUploading: boolean;
   setActiveSurveyId: (id: string | null) => void;
   createSurvey: (
     files: File[],
     surveyName?: string,
-    onProgress?: (stage: string, pct: number) => void
+    onProgress?: (detail: UploadProgressDetail) => void
   ) => Promise<DroneSurvey>;
   deleteSurvey: (id: string) => Promise<void>;
   refreshSurveys: () => Promise<void>;
@@ -46,6 +58,8 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
     getStoredActiveSurveyId()
   );
   const [loading, setLoading] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const uploadLockRef = useRef<boolean>(false);
 
   // Sync active survey with ID
   const activeSurvey =
@@ -101,26 +115,114 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
     refreshSurveys();
   }, [refreshSurveys]);
 
-  // Create survey from uploaded files
+  // Create survey from uploaded files with robust multipart streaming & timeout immunity
   const createSurvey = async (
     files: File[],
     surveyName?: string,
-    onProgress?: (stage: string, pct: number) => void
+    onProgress?: (detail: UploadProgressDetail) => void
   ): Promise<DroneSurvey> => {
-    onProgress?.("Extracting EXIF & GNSS Metadata...", 20);
+    if (uploadLockRef.current) {
+      throw new Error("An upload operation is already in progress. Please wait.");
+    }
 
-    const survey = await buildSurveyFromFiles(files, surveyName);
+    uploadLockRef.current = true;
+    setIsUploading(true);
+
+    const totalPayloadBytes = files.reduce((sum, f) => sum + f.size, 0);
+    const totalPayloadMB = (totalPayloadBytes / (1024 * 1024)).toFixed(1);
 
     try {
-      onProgress?.("Uploading raw drone imagery to Live Processing Engine...", 50);
+      // Step 1: Client-side EXIF & Telemetry Extraction
+      onProgress?.({
+        stage: `Extracting EXIF & GNSS telemetry from ${files.length} images...`,
+        percentage: 10,
+        totalBytes: totalPayloadBytes,
+        totalMB: totalPayloadMB,
+      });
+
+      const survey = await buildSurveyFromFiles(files, surveyName);
+
+      // Step 2: Pre-flight Render health check to wake up sleeping instance
+      onProgress?.({
+        stage: "Connecting to Live Render Processing Server...",
+        percentage: 15,
+        totalBytes: totalPayloadBytes,
+        totalMB: totalPayloadMB,
+      });
+
+      const isServerAwake = await pingBackendHealth();
+      if (!isServerAwake) {
+        onProgress?.({
+          stage: "Render server is waking up from cold-start, establishing stream...",
+          percentage: 18,
+          totalBytes: totalPayloadBytes,
+          totalMB: totalPayloadMB,
+        });
+        // Short pause to allow Render instance to fully initialize
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      // Step 3: Stream Multipart Payload with real-time byte tracking and 15-minute timeout
+      onProgress?.({
+        stage: `Streaming ${files.length} images (${totalPayloadMB} MB) to backend...`,
+        percentage: 20,
+        loadedBytes: 0,
+        totalBytes: totalPayloadBytes,
+        loadedMB: "0.0",
+        totalMB: totalPayloadMB,
+      });
+
       const formData = new FormData();
       files.forEach((file) => formData.append("files", file));
 
-      const uploadRes = await API.post("/api/upload/images", formData);
+      const startTime = Date.now();
+
+      const uploadRes = await API.post("/api/upload/images", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 900000, // 15 minutes timeout for 247+ MB datasets
+        onUploadProgress: (progressEvent) => {
+          const total = progressEvent.total || totalPayloadBytes;
+          const loaded = progressEvent.loaded;
+          const fraction = total > 0 ? loaded / total : 0;
+          // Scale upload progress between 20% and 80%
+          const percentage = Math.min(80, Math.round(20 + fraction * 60));
+
+          const loadedMB = (loaded / (1024 * 1024)).toFixed(1);
+          const elapsedSec = (Date.now() - startTime) / 1000;
+          const speedMBs = elapsedSec > 0 ? (loaded / (1024 * 1024) / elapsedSec).toFixed(2) : "0.0";
+
+          onProgress?.({
+            stage: `Uploading: ${loadedMB} MB / ${totalPayloadMB} MB (${speedMBs} MB/s)`,
+            percentage,
+            loadedBytes: loaded,
+            totalBytes: total,
+            loadedMB,
+            totalMB: totalPayloadMB,
+            uploadSpeed: `${speedMBs} MB/s`,
+          });
+        },
+      });
+
       console.log("Uploaded images response:", uploadRes.data);
 
-      onProgress?.("Triggering 3D Photogrammetry Reconstruction Pipeline...", 80);
-      const reconRes = await API.post("/api/reconstruction/generate", {});
+      // Step 4: Run 3D Photogrammetry Reconstruction Pipeline
+      onProgress?.({
+        stage: "Ingestion complete. Processing SfM photogrammetry & 3D mesh reconstruction...",
+        percentage: 85,
+        totalBytes: totalPayloadBytes,
+        totalMB: totalPayloadMB,
+      });
+
+      const reconRes = await API.post(
+        "/api/reconstruction/generate",
+        {},
+        {
+          timeout: 300000, // 5 minutes timeout for 3D SfM reconstruction
+        }
+      );
+
       console.log("Reconstruction response:", reconRes.data);
 
       const projectId = reconRes.data?.project_id;
@@ -130,20 +232,34 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
         survey.modelUrl = `/api/projects/${projectId}/model`;
         survey.processingTime = reconRes.data?.processing_time || 2.5;
       }
+
+      onProgress?.({
+        stage: "Reconstruction complete! Finalizing survey telemetry...",
+        percentage: 100,
+        totalBytes: totalPayloadBytes,
+        totalMB: totalPayloadMB,
+      });
+
+      setSurveys((prev) => [survey, ...prev]);
+      setActiveSurveyId(survey.id);
+      return survey;
     } catch (err: any) {
-      console.warn("Backend reconstruction fallback:", err);
-      survey.reconstructionStatus = "unavailable";
-      if (!survey.warnings) survey.warnings = [];
-      survey.warnings.push(
-        "Backend photogrammetry pipeline was unreachable or timed out. Telemetry and flight geometry extracted locally."
-      );
+      console.error("Survey creation error:", err);
+
+      let errorMessage = "Upload failed. Please check network connection.";
+      if (err.code === "ECONNABORTED") {
+        errorMessage = "Upload timed out. The network speed was insufficient for the dataset size. Please retry.";
+      } else if (err.response?.status === 413) {
+        errorMessage = "Payload too large. Server request body limit exceeded.";
+      } else if (err.response?.data?.detail) {
+        errorMessage = String(err.response.data.detail);
+      }
+
+      throw new Error(errorMessage);
+    } finally {
+      uploadLockRef.current = false;
+      setIsUploading(false);
     }
-
-    onProgress?.("Finalizing mission data...", 100);
-
-    setSurveys((prev) => [survey, ...prev]);
-    setActiveSurveyId(survey.id);
-    return survey;
   };
 
   const deleteSurvey = async (id: string) => {
@@ -186,6 +302,7 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
         activeSurvey,
         activeSurveyId,
         loading,
+        isUploading,
         setActiveSurveyId,
         createSurvey,
         deleteSurvey,
