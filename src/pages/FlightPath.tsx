@@ -61,14 +61,16 @@ const FlightPath = () => {
       // Fallback: try fetching from live backend GPS endpoint
       const fetchLiveGPS = async () => {
         try {
+          console.log("[PIPELINE]\nstage=GPS_FETCH\nmethod=GET\nurl=/gps/");
           const res = await API.get("/gps/");
+          console.log(`[PIPELINE_SUCCESS]\nstage=GPS_FETCH\nstatus=200\nurl=/gps/\nresponse=${res.data?.count} locations`);
           const locations: FlightImageInfo[] = res.data?.locations || [];
           setFlightImages(locations);
           if (locations.length > 0) {
             setSelectedImage(locations[0]);
           }
-        } catch (err) {
-          console.warn("Backend GPS endpoint notice:", err);
+        } catch (err: any) {
+          console.error(`[PIPELINE_FAILURE]\nstage=GPS_FETCH\nurl=/gps/\nerrorMessage=${err?.message || err}`);
         }
       };
       fetchLiveGPS();

@@ -28,6 +28,8 @@ export default function AnalyticsPanel() {
   useEffect(() => {
     if (!projectId) return;
 
+    console.log(`[PIPELINE]\nstage=ANALYTICS_FETCH\nmethod=GET\nurl=/api/analytics/${projectId}`);
+
     Promise.all([
       API.get(`/api/projects/${projectId}/model`, {
         responseType: "blob",
@@ -35,6 +37,7 @@ export default function AnalyticsPanel() {
       API.get(`/api/analytics/${projectId}`),
     ])
       .then(([modelRes, analyticsRes]) => {
+        console.log(`[PIPELINE_SUCCESS]\nstage=ANALYTICS_FETCH\nstatus=200\nurl=/api/analytics/${projectId}\nresponse=${JSON.stringify(analyticsRes.data)}`);
         const sizeMB = (modelRes.data.size / 1024 / 1024).toFixed(2);
         const meta = analyticsRes.data;
 
@@ -48,7 +51,9 @@ export default function AnalyticsPanel() {
           volume: Number(meta.volume ?? 0),
         });
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error(`[PIPELINE_FAILURE]\nstage=ANALYTICS_FETCH\nurl=/api/analytics/${projectId}\nerrorMessage=${err?.message || err}`);
+      });
   }, [projectId]);
 
   if (!projectId) return null;

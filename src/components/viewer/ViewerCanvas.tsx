@@ -45,6 +45,7 @@ export default function ViewerCanvas() {
     async function loadModel() {
       try {
         setError(null);
+        console.log(`[PIPELINE]\nstage=MODEL_FETCH\nmethod=GET\nurl=/api/projects/${projectId}/model`);
 
         let response;
         try {
@@ -53,19 +54,22 @@ export default function ViewerCanvas() {
           });
         } catch {
           // Fallback to alternate reconstruction model route
+          console.log(`[PIPELINE]\nstage=MODEL_FETCH\nmethod=GET\nurl=/api/reconstruction/model/${projectId}`);
           response = await API.get(`/api/reconstruction/model/${projectId}`, {
             responseType: "blob",
           });
         }
 
         if (response.data && response.data.size > 0) {
+          console.log(`[PIPELINE_SUCCESS]\nstage=MODEL_FETCH\nstatus=200\nurl=/api/projects/${projectId}/model\nresponse=${response.data.size} bytes`);
+          console.log(`[PIPELINE]\nstage=MODEL_VIEWER\nmethod=INITIALIZE_CANVAS\nurl=threejs_viewport`);
           objectUrl = URL.createObjectURL(response.data);
           setModelUrl(objectUrl);
         } else {
           setError("3D reconstruction model file is empty or still generating.");
         }
       } catch (err: any) {
-        console.error("Failed to load 3D model:", err);
+        console.error(`[PIPELINE_FAILURE]\nstage=MODEL_FETCH\nurl=/api/projects/${projectId}/model\nerrorMessage=${err?.message || err}`);
         setError(
           err.response?.data?.detail ||
             "3D reconstruction model not available for this project yet."
