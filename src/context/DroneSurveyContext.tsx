@@ -208,8 +208,9 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       console.log("Uploaded images response:", uploadRes.data);
+      const sessionUploadId = uploadRes.data?.upload_id;
 
-      // Step 4: Run 3D Photogrammetry Reconstruction Pipeline
+      // Step 4: Run 3D Photogrammetry Reconstruction Pipeline on the exact uploaded images
       onProgress?.({
         stage: "Ingestion complete. Processing SfM photogrammetry & 3D mesh reconstruction...",
         percentage: 85,
@@ -219,7 +220,10 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const reconRes = await API.post(
         "/api/reconstruction/generate",
-        {},
+        {
+          upload_id: sessionUploadId,
+          project_name: survey.name,
+        },
         {
           timeout: 300000, // 5 minutes timeout for 3D SfM reconstruction
         }
