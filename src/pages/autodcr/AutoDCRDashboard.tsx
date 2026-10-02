@@ -8,13 +8,13 @@ import {
   ArrowRight,
   Upload,
   Cpu,
-  Activity,
 } from "lucide-react";
 import AutoDCRService from "../../services/autodcrService";
 import type { SystemMetrics, AutoDCRProject } from "../../types/autodcr";
 import StatusBadge from "../../components/common/StatusBadge";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import ErrorState from "../../components/common/ErrorState";
+import StatCard from "../../components/dashboard/StatCard";
 import "./AutoDCRDashboard.css";
 
 export default function AutoDCRDashboard() {
@@ -41,7 +41,8 @@ export default function AutoDCRDashboard() {
         AutoDCRService.listProjects().catch(() => ({ projects: [] })),
       ]);
       setMetrics(mRes);
-      setProjects(pRes.projects || []);
+      const projList = Array.isArray(pRes) ? pRes : (pRes?.projects || []);
+      setProjects(projList);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to load dashboard metrics");
@@ -52,7 +53,7 @@ export default function AutoDCRDashboard() {
 
   if (loading) {
     return (
-      <div className="autodcr-dash-container">
+      <div className="autodcr-dash-container space-y-6">
         <SkeletonLoader type="card" count={4} />
         <SkeletonLoader type="chart" count={1} />
       </div>
@@ -64,226 +65,189 @@ export default function AutoDCRDashboard() {
   }
 
   return (
-    <div className="autodcr-dash-container">
+    <div className="autodcr-dash-container space-y-6">
       {/* Header Banner */}
-      <div className="autodcr-dash-header bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950/40 p-6 rounded-2xl border border-slate-800/80 shadow-xl">
+      <div className="autodcr-dash-header bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            Municipal AutoDCR Overview
-            <span className="text-xs px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              Municipal AutoDCR Overview
+            </h1>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-50 text-cyan-800 border border-cyan-200 font-bold">
               v{metrics?.engine_version || "2.0.0"}
             </span>
-          </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          </div>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
             Automated CAD & BIM Building Plan Scrutiny System
           </p>
         </div>
 
         <Link
           to="/autodcr/upload"
-          className="mt-4 sm:mt-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-cyan-500/20 shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs sm:text-sm transition-all shadow-sm shrink-0"
         >
-          <Upload size={18} />
+          <Upload size={16} />
           Upload New Drawing
         </Link>
       </div>
 
       {/* Stat Cards Grid */}
-      <div className="autodcr-dash-stat-grid">
-        <div className="autodcr-dash-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Submissions
-              </p>
-              <h2 className="text-3xl font-extrabold text-white mt-2">
-                {projects.length}
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              <Building2 size={24} />
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-xs text-emerald-400">
-            <Activity size={14} /> Active Municipal Pipeline
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Submissions"
+          value={projects.length}
+          icon={Building2}
+          color="cyan"
+          subtitle="Registered CAD Projects"
+        />
 
-        <div className="autodcr-dash-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Engine Health
-              </p>
-              <h2 className="text-3xl font-extrabold text-emerald-400 mt-2">
-                {metrics?.status || "HEALTHY"}
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Cpu size={24} />
-            </div>
-          </div>
-          <div className="mt-3 text-xs text-slate-400">
-            FastAPI Rule Engine Active
-          </div>
-        </div>
+        <StatCard
+          title="Engine Health"
+          value={metrics?.status || "HEALTHY"}
+          icon={Cpu}
+          color="emerald"
+          subtitle="FastAPI Microservices Online"
+        />
 
-        <div className="autodcr-dash-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Supported CAD Formats
-              </p>
-              <h2 className="text-2xl font-extrabold text-cyan-300 mt-2">
-                DXF, DWG, IFC, PDF
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <Layers size={24} />
-            </div>
-          </div>
-          <div className="mt-3 text-xs text-slate-400">
-            Automated Layer & Block Extraction
-          </div>
-        </div>
+        <StatCard
+          title="CAD & BIM Formats"
+          value="DXF • DWG • PDF • IFC"
+          icon={Layers}
+          color="indigo"
+          subtitle="Layer & Geometry Extraction"
+        />
 
-        <div className="autodcr-dash-card">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Active Rule Sets
-              </p>
-              <h2 className="text-3xl font-extrabold text-amber-400 mt-2">
-                5 Zones
-              </h2>
-            </div>
-            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <ShieldAlert size={24} />
-            </div>
-          </div>
-          <div className="mt-3 text-xs text-slate-400">
-            Residential, Commercial, Industrial, etc.
-          </div>
-        </div>
+        <StatCard
+          title="Active Bye-laws"
+          value="5 Municipal Zones"
+          icon={ShieldAlert}
+          color="amber"
+          subtitle="NBC 2016 Compliant Rules"
+        />
       </div>
 
       {/* Main Content Grid */}
-      <div className="autodcr-dash-content-grid">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Workflow Quick Access */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-6 space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <FileCheck className="text-cyan-400" size={20} />
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-4">
+          <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <FileCheck className="text-cyan-600" size={18} />
               AutoDCR Automated Scrutiny Workflow
             </h3>
+            <span className="text-xs text-slate-500 hidden sm:inline">5 Step Verification</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <Link
               to="/autodcr/upload"
-              className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 transition-all group"
+              className="p-4 rounded-xl bg-slate-50 hover:bg-cyan-50/40 border border-slate-200 hover:border-cyan-300 transition-all group"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-cyan-800 bg-cyan-100/70 px-2 py-0.5 rounded-md">
                   STEP 1
                 </span>
-                <ArrowRight size={16} className="text-slate-500 group-hover:text-cyan-400 transition-all" />
+                <ArrowRight size={14} className="text-slate-400 group-hover:text-cyan-600 transition-all group-hover:translate-x-0.5" />
               </div>
-              <h4 className="font-bold text-white text-base">Upload CAD / BIM File</h4>
-              <p className="text-slate-400 text-xs mt-1">
-                Upload DXF, DWG, IFC, or PDF drawings with full validation.
+              <h4 className="font-bold text-slate-900 text-sm">Upload CAD / BIM File</h4>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Upload DXF, DWG, IFC, or PDF drawings with full pre-validation.
               </p>
             </Link>
 
             <Link
               to="/autodcr/parse"
-              className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 transition-all group"
+              className="p-4 rounded-xl bg-slate-50 hover:bg-cyan-50/40 border border-slate-200 hover:border-cyan-300 transition-all group"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-cyan-800 bg-cyan-100/70 px-2 py-0.5 rounded-md">
                   STEP 2
                 </span>
-                <ArrowRight size={16} className="text-slate-500 group-hover:text-cyan-400 transition-all" />
+                <ArrowRight size={14} className="text-slate-400 group-hover:text-cyan-600 transition-all group-hover:translate-x-0.5" />
               </div>
-              <h4 className="font-bold text-white text-base">Parsing & Layer Check</h4>
-              <p className="text-slate-400 text-xs mt-1">
-                Extract layers, entities, texts, blocks, and dimensions.
+              <h4 className="font-bold text-slate-900 text-sm">Parsing & Layer Check</h4>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Extract layers, polylines, texts, blocks, and dimensions.
               </p>
             </Link>
 
             <Link
               to="/autodcr/detect"
-              className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 transition-all group"
+              className="p-4 rounded-xl bg-slate-50 hover:bg-cyan-50/40 border border-slate-200 hover:border-cyan-300 transition-all group"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-cyan-800 bg-cyan-100/70 px-2 py-0.5 rounded-md">
                   STEP 3
                 </span>
-                <ArrowRight size={16} className="text-slate-500 group-hover:text-cyan-400 transition-all" />
+                <ArrowRight size={14} className="text-slate-400 group-hover:text-cyan-600 transition-all group-hover:translate-x-0.5" />
               </div>
-              <h4 className="font-bold text-white text-base">Spatial Feature Detection</h4>
-              <p className="text-slate-400 text-xs mt-1">
+              <h4 className="font-bold text-slate-900 text-sm">Spatial Feature Detection</h4>
+              <p className="text-slate-500 text-xs mt-0.5">
                 Detect plot, building footprint, parking, lifts, and staircases.
               </p>
             </Link>
 
             <Link
               to="/autodcr/calculate"
-              className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 transition-all group"
+              className="p-4 rounded-xl bg-slate-50 hover:bg-cyan-50/40 border border-slate-200 hover:border-cyan-300 transition-all group"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-cyan-800 bg-cyan-100/70 px-2 py-0.5 rounded-md">
                   STEP 4
                 </span>
-                <ArrowRight size={16} className="text-slate-500 group-hover:text-cyan-400 transition-all" />
+                <ArrowRight size={14} className="text-slate-400 group-hover:text-cyan-600 transition-all group-hover:translate-x-0.5" />
               </div>
-              <h4 className="font-bold text-white text-base">Area & Metric Calculations</h4>
-              <p className="text-slate-400 text-xs mt-1">
+              <h4 className="font-bold text-slate-900 text-sm">Area & Metric Calculations</h4>
+              <p className="text-slate-500 text-xs mt-0.5">
                 Calculate plot area, FSI, FAR, ground coverage, and height.
               </p>
             </Link>
 
             <Link
               to="/autodcr/validate"
-              className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 transition-all group sm:col-span-2"
+              className="p-4 rounded-xl bg-slate-50 hover:bg-emerald-50/40 border border-slate-200 hover:border-emerald-300 transition-all group sm:col-span-2"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
                   STEP 5 & 6
                 </span>
-                <ArrowRight size={16} className="text-slate-500 group-hover:text-cyan-400 transition-all" />
+                <ArrowRight size={14} className="text-slate-400 group-hover:text-emerald-600 transition-all group-hover:translate-x-0.5" />
               </div>
-              <h4 className="font-bold text-white text-base">Municipal Rule Validation & Report</h4>
-              <p className="text-slate-400 text-xs mt-1">
-                Validate against residential/commercial rules and generate official PDF/JSON reports.
+              <h4 className="font-bold text-slate-900 text-sm">Municipal Rule Validation & Certificate</h4>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Validate against residential/commercial bye-laws and generate official PDF certificates.
               </p>
             </Link>
           </div>
         </div>
 
         {/* Right Column: Supported Zones & Rules */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-6 space-y-4">
-          <h3 className="text-lg font-bold text-white">Supported Zones</h3>
-          <div className="space-y-2">
-            {(metrics?.supported_zones || ["Residential", "Commercial", "Industrial", "Mixed Use", "High Rise"]).map(
-              (zone, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-sm"
-                >
-                  <span className="font-semibold text-slate-200">{zone}</span>
-                  <StatusBadge status="ACTIVE" size="sm" />
-                </div>
-              )
-            )}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-4 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 pb-2 border-b border-slate-100 mb-3">
+              Supported Scrutiny Zones
+            </h3>
+            <div className="space-y-2">
+              {(metrics?.supported_zones || ["Residential", "Commercial", "Industrial", "Mixed Use", "High Rise"]).map(
+                (zone, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs"
+                  >
+                    <span className="font-semibold text-slate-800">{zone}</span>
+                    <StatusBadge status="ACTIVE" size="sm" />
+                  </div>
+                )
+              )}
+            </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-800">
+          <div className="pt-3 border-t border-slate-100">
             <Link
               to="/autodcr/rules"
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all"
+              className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs transition-all"
             >
-              Browse All Municipal Bye-laws & Rules
+              Browse All Municipal Bye-laws & Rules <ArrowRight size={14} />
             </Link>
           </div>
         </div>

@@ -1,8 +1,5 @@
-/* Scoped styles for Profile Screen */
+/* Scoped styles for Profile */
 .autodcr-profile-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
   width: 100%;
   max-width: 56rem;
   margin-left: auto;

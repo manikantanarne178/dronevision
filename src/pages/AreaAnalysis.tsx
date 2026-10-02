@@ -7,83 +7,86 @@ import {
 
 export default function AreaAnalysis() {
   return (
-    <div className="p-8 text-white">
-
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">
-          Area Analysis
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="p-1 rounded-md bg-cyan-50 text-cyan-600 border border-cyan-200">
+            <Calculator className="w-4 h-4" />
+          </span>
+          <span className="text-xs font-semibold text-cyan-700 uppercase tracking-wider">
+            Zoning & Spatial Metrics
+          </span>
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+          Area & FSI / FAR Scrutiny
         </h1>
-
-        <p className="text-slate-400 mt-2">
-          Analyze plot area, building area and development rules.
+        <p className="text-sm text-slate-500">
+          Compute gross plot area, built-up area, ground coverage, and permissible Floor Area Ratio under municipal building bylaws.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
-
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6">
-          <Square className="text-cyan-400 mb-4" size={32} />
-
-          <h3 className="font-semibold">
-            Plot Area
-          </h3>
-
-          <p className="text-3xl font-bold mt-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Plot Area</span>
+            <div className="p-1.5 rounded-lg bg-cyan-50 text-cyan-600">
+              <Square size={16} />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 font-mono">
             --
           </p>
+          <span className="text-[11px] text-slate-400 mt-1 block">Awaiting CAD polygon</span>
         </div>
 
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6">
-          <Building2 className="text-cyan-400 mb-4" size={32} />
-
-          <h3 className="font-semibold">
-            Building Area
-          </h3>
-
-          <p className="text-3xl font-bold mt-3">
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Built-up Area</span>
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+              <Building2 size={16} />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 font-mono">
             --
           </p>
+          <span className="text-[11px] text-slate-400 mt-1 block">Cumulative floor area</span>
         </div>
 
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6">
-          <Ruler className="text-cyan-400 mb-4" size={32} />
-
-          <h3 className="font-semibold">
-            Ground Coverage
-          </h3>
-
-          <p className="text-3xl font-bold mt-3">
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Ground Coverage</span>
+            <div className="p-1.5 rounded-lg bg-teal-50 text-teal-600">
+              <Ruler size={16} />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 font-mono">
             --
           </p>
+          <span className="text-[11px] text-slate-400 mt-1 block">Max permissible: 40%</span>
         </div>
 
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6">
-          <Calculator className="text-cyan-400 mb-4" size={32} />
-
-          <h3 className="font-semibold">
-            FAR / FSI
-          </h3>
-
-          <p className="text-3xl font-bold mt-3">
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Permissible FAR / FSI</span>
+            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+              <Calculator size={16} />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 font-mono">
             --
           </p>
+          <span className="text-[11px] text-slate-400 mt-1 block">Zone standard: 1.75</span>
         </div>
-
       </div>
 
-      <div className="mt-8 rounded-2xl bg-slate-900 border border-slate-800 p-6">
-
-        <h2 className="text-xl font-semibold mb-4">
-          Analysis Summary
+      <div className="rounded-xl bg-white border border-slate-200 p-6 shadow-xs">
+        <h2 className="text-sm font-semibold text-slate-900 mb-2">
+          Area Calculation & Bylaw Audit Summary
         </h2>
-
-        <p className="text-slate-400">
-          Area calculations will be displayed here after
-          uploading and processing a DXF drawing.
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Comprehensive geometric area calculations, deductions (cantilevers, balconies, service shafts), and FAR compliance checks will be automatically displayed here after uploading and processing a municipal DXF drawing or drone survey.
         </p>
-
       </div>
-
     </div>
   );
 }

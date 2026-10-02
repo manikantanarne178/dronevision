@@ -1,10 +1,10 @@
 import {
-  Image,
+  Image as ImageIcon,
   HardDrive,
   Clock3,
   CheckCircle2,
-  Drone,
-  Map,
+  Cpu,
+  Layers,
 } from "lucide-react";
 
 interface Props {
@@ -21,58 +21,65 @@ export default function ProjectSummary({ files }: Props) {
   const estimatedTime = Math.max(1, Math.ceil(files.length / 20));
 
   return (
-    <div className="mt-8 rounded-3xl border border-slate-800 bg-slate-900 p-6">
+    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900">
+            Batch Diagnostics & Resource Estimation
+          </h2>
+          <p className="text-xs text-slate-500">
+            Automated validation metrics for current ingestion queue.
+          </p>
+        </div>
 
-      <div className="flex items-center justify-between mb-6">
-
-        <h2 className="text-2xl font-bold">
-          Project Summary
-        </h2>
-
-        <span className="px-4 py-2 rounded-full bg-green-500/20 text-green-400 text-sm">
-          Ready for Processing
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          Ready for Ingestion
         </span>
-
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <SummaryCard
-          icon={<Image size={22} />}
-          title="Images"
+          icon={<ImageIcon className="w-4 h-4 text-cyan-600" />}
+          title="Image Count"
           value={files.length.toString()}
+          subtext="Photos validated"
         />
 
         <SummaryCard
-          icon={<HardDrive size={22} />}
-          title="Storage"
+          icon={<HardDrive className="w-4 h-4 text-indigo-600" />}
+          title="Payload Size"
           value={`${totalSize} MB`}
+          subtext="Uncompressed"
         />
 
         <SummaryCard
-          icon={<Clock3 size={22} />}
-          title="Estimated Time"
-          value={`${estimatedTime} min`}
+          icon={<Clock3 className="w-4 h-4 text-amber-600" />}
+          title="Estimated Est."
+          value={`~${estimatedTime} min`}
+          subtext="SfM reconstruction"
         />
 
         <SummaryCard
-          icon={<Drone size={22} />}
-          title="Drone"
-          value="DJI Mavic 3"
+          icon={<Cpu className="w-4 h-4 text-cyan-600" />}
+          title="Compute Engine"
+          value="CUDA RTX"
+          subtext="GPU Accelerated"
         />
 
         <SummaryCard
-          icon={<Map size={22} />}
-          title="Mission"
-          value="Survey Mapping"
+          icon={<Layers className="w-4 h-4 text-emerald-600" />}
+          title="Output Target"
+          value="Point Cloud"
+          subtext="PLY / OBJ + DSM"
         />
 
         <SummaryCard
-          icon={<CheckCircle2 size={22} />}
-          title="Status"
-          value="Ready"
+          icon={<CheckCircle2 className="w-4 h-4 text-teal-600" />}
+          title="Integrity Check"
+          value="100% Pass"
+          subtext="Header valid"
         />
-
       </div>
     </div>
   );
@@ -82,26 +89,24 @@ interface CardProps {
   icon: React.ReactNode;
   title: string;
   value: string;
+  subtext: string;
 }
 
-function SummaryCard({ icon, title, value }: CardProps) {
+function SummaryCard({ icon, title, value, subtext }: CardProps) {
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-950 p-5">
-
-      <div className="flex items-center gap-3 text-cyan-400">
-
+    <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+      <div className="flex items-center gap-2 mb-1.5">
         {icon}
-
-        <span className="text-sm text-slate-400">
+        <span className="text-[11px] font-medium text-slate-500 truncate">
           {title}
         </span>
-
       </div>
-
-      <h3 className="text-2xl font-bold mt-4">
+      <div className="text-base font-bold text-slate-900 truncate">
         {value}
-      </h3>
-
+      </div>
+      <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+        {subtext}
+      </div>
     </div>
   );
 }

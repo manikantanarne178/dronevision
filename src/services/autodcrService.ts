@@ -122,6 +122,40 @@ export class AutoDCRService {
   }
 
   /**
+   * Get comprehensive municipal scrutiny report JSON
+   */
+  static async getScrutinyReport(
+    fileId: string,
+    zone: string = "Residential"
+  ): Promise<ReportResponse> {
+    try {
+      const response = await API.get<ReportResponse>(
+        `/api/autodcr/projects/${encodeURIComponent(fileId)}/scrutiny-report`
+      );
+      return response.data;
+    } catch {
+      // Fallback to legacy report endpoint if needed
+      const response = await API.get<ReportResponse>(
+        `/api/autodcr/report/${encodeURIComponent(fileId)}?zone=${encodeURIComponent(zone)}`
+      );
+      return response.data;
+    }
+  }
+
+  /**
+   * Download official binary PDF scrutiny report
+   */
+  static async downloadScrutinyReportPDF(fileId: string): Promise<Blob> {
+    const response = await API.get(
+      `/api/autodcr/projects/${encodeURIComponent(fileId)}/scrutiny-report/pdf`,
+      {
+        responseType: "blob",
+      }
+    );
+    return response.data;
+  }
+
+  /**
    * Generate multi-format municipal compliance report
    */
   static async generateReport(
@@ -129,6 +163,9 @@ export class AutoDCRService {
     format: string = "json",
     zone: string = "Residential"
   ): Promise<ReportResponse> {
+    if (format.toLowerCase() === "json") {
+      return this.getScrutinyReport(fileId, zone);
+    }
     const response = await API.post<ReportResponse>(
       `/api/autodcr/report?file_id=${encodeURIComponent(
         fileId

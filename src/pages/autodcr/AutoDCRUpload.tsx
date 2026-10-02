@@ -84,18 +84,15 @@ export default function AutoDCRUpload() {
       setUploadProgress(0);
       setError(null);
 
-      // Upload the primary file
       const primaryFile = files[0];
       const res = await AutoDCRService.uploadDrawing(primaryFile, (pct) => {
         setUploadProgress(pct);
       });
 
       setUploadSuccess(res);
-      // Store current file_id in localStorage for parsing step
-      const fileId = res.path || primaryFile.name;
-      localStorage.setItem("current_file_id", fileId);
+      const projectId = res.project_id || res.stored_filename || res.file_id || primaryFile.name;
+      localStorage.setItem("current_file_id", projectId);
       localStorage.setItem("current_filename", primaryFile.name);
-
     } catch (err: any) {
       console.error("Upload error:", err);
       setError(
@@ -109,54 +106,69 @@ export default function AutoDCRUpload() {
   };
 
   const handleProceedToParse = () => {
-    const fileId = uploadSuccess?.path || files[0]?.name;
+    const fileId =
+      uploadSuccess?.project_id ||
+      uploadSuccess?.stored_filename ||
+      uploadSuccess?.file_id ||
+      files[0]?.name;
     navigate(`/autodcr/parse?file_id=${encodeURIComponent(fileId)}`);
   };
 
   return (
-    <div className="autodcr-upload-container">
+    <div className="autodcr-upload-container space-y-6">
       {/* Title Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
           Upload Drawing for AutoDCR Scrutiny
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <p className="text-slate-500 text-xs sm:text-sm mt-1">
           Supports DWG, DXF CAD files, IFC BIM models, and PDF architectural drawings up to 50MB.
         </p>
       </div>
 
       {/* Error Alert */}
       {error && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-sm">
-          <AlertCircle size={20} className="shrink-0 text-rose-400" />
-          <span className="flex-1">{error}</span>
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm">
+          <AlertCircle size={18} className="shrink-0 text-rose-600" />
+          <span className="flex-1 font-medium">{error}</span>
           <button
             onClick={() => setError(null)}
-            className="text-rose-400 hover:text-white"
+            className="text-rose-500 hover:text-rose-800 cursor-pointer"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
       )}
 
       {/* Success Notification */}
       {uploadSuccess && (
-        <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-800 text-emerald-200 space-y-3">
-          <div className="flex items-center gap-3">
-            <FileCheck2 className="text-emerald-400" size={24} />
-            <div>
-              <h3 className="font-bold text-white text-base">
-                Drawing Uploaded Successfully!
-              </h3>
-              <p className="text-xs text-emerald-300">
-                Path: {uploadSuccess.path}
-              </p>
+        <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <FileCheck2 className="text-emerald-600 shrink-0" size={24} />
+              <div>
+                <h3 className="font-bold text-emerald-900 text-sm sm:text-base">
+                  Drawing Uploaded & Scrutiny Initiated!
+                </h3>
+                <p className="text-xs text-emerald-700 font-mono mt-0.5">
+                  Project: {uploadSuccess.project_id || uploadSuccess.project_code || "DCR Project"} | File: {uploadSuccess.filename || files[0]?.name}
+                </p>
+              </div>
             </div>
+            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              {uploadSuccess.status || "PROCESSING"}
+            </span>
           </div>
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <button
+              onClick={() => navigate("/autodcr/projects")}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs transition-all shadow-2xs cursor-pointer"
+            >
+              View in Projects
+            </button>
             <button
               onClick={handleProceedToParse}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer"
             >
               Proceed to Parsing & Analysis <ArrowRight size={16} />
             </button>
@@ -173,7 +185,11 @@ export default function AutoDCRUpload() {
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className={`autodcr-upload-dropzone ${isDragging ? "dragging" : ""}`}
+        className={`bg-white rounded-2xl border-2 border-dashed p-8 sm:p-12 text-center cursor-pointer transition-all duration-200 ${
+          isDragging
+            ? "border-cyan-600 bg-cyan-50/50 scale-[1.005]"
+            : "border-slate-300 hover:border-cyan-600 hover:bg-slate-50/50"
+        }`}
       >
         <input
           ref={fileInputRef}
@@ -184,28 +200,28 @@ export default function AutoDCRUpload() {
           onChange={handleFileSelect}
         />
 
-        <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-4">
-          <UploadCloud size={36} className="text-cyan-400" />
+        <div className="w-14 h-14 rounded-2xl bg-cyan-50 border border-cyan-200 flex items-center justify-center mx-auto mb-3 text-cyan-600">
+          <UploadCloud size={30} />
         </div>
 
-        <h3 className="text-xl font-bold text-white mb-1">
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1">
           Drag & Drop Architectural Drawings
         </h3>
-        <p className="text-slate-400 text-sm mb-4">
-          or <span className="text-cyan-400 underline font-semibold">browse files</span> from your computer
+        <p className="text-slate-500 text-xs sm:text-sm mb-4">
+          or <span className="text-cyan-700 font-semibold underline">browse files</span> from your computer
         </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500">
-          <span className="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800">.DXF</span>
-          <span className="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800">.DWG</span>
-          <span className="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800">.IFC</span>
-          <span className="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800">.PDF</span>
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600">
+          <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-semibold">.DXF</span>
+          <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-semibold">.DWG</span>
+          <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-semibold">.IFC</span>
+          <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-semibold">.PDF</span>
         </div>
       </div>
 
       {/* Upload Progress Bar */}
       {uploading && (
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
           <ProgressBar
             progress={uploadProgress}
             label="Uploading CAD File to FastAPI Server..."
@@ -218,7 +234,7 @@ export default function AutoDCRUpload() {
       {files.length > 0 && (
         <div className="space-y-3">
           <div className="flex justify-between items-center px-1">
-            <h3 className="font-bold text-white text-base">
+            <h3 className="font-bold text-slate-900 text-sm">
               Selected Files ({files.length})
             </h3>
             <button
@@ -226,23 +242,26 @@ export default function AutoDCRUpload() {
                 setFiles([]);
                 setUploadSuccess(null);
               }}
-              className="text-xs font-semibold text-rose-400 hover:underline"
+              className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
             >
               Clear All
             </button>
           </div>
 
           {files.map((file, idx) => (
-            <div key={idx} className="autodcr-upload-file-card">
+            <div
+              key={idx}
+              className="bg-white rounded-xl border border-slate-200 p-3.5 flex items-center justify-between shadow-2xs"
+            >
               <div className="flex items-center gap-3 overflow-hidden">
-                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
-                  <FileText className="text-cyan-400" size={20} />
+                <div className="w-9 h-9 rounded-lg bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-600 shrink-0">
+                  <FileText size={18} />
                 </div>
-                <div className="overflow-hidden">
-                  <p className="font-bold text-white text-sm truncate">
+                <div className="overflow-hidden min-w-0">
+                  <p className="font-semibold text-slate-900 text-xs sm:text-sm truncate">
                     {file.name}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[11px] text-slate-400">
                     {(file.size / (1024 * 1024)).toFixed(2)} MB
                   </p>
                 </div>
@@ -250,37 +269,38 @@ export default function AutoDCRUpload() {
 
               <button
                 onClick={() => removeFile(idx)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-all shrink-0"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-all shrink-0 cursor-pointer"
+                title="Remove file"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
           ))}
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-3">
+          <div className="flex flex-col sm:flex-row justify-end gap-2.5 pt-2">
             {error && (
               <button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition-all"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs transition-all cursor-pointer"
               >
-                <RefreshCw size={16} /> Retry Upload
+                <RefreshCw size={14} /> Retry Upload
               </button>
             )}
 
             <button
               onClick={handleUpload}
               disabled={uploading || files.length === 0}
-              className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 disabled:cursor-not-allowed text-slate-950 font-bold text-base transition-all shadow-lg shadow-cyan-500/20"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm transition-all shadow-sm cursor-pointer"
             >
               {uploading ? (
                 <>
-                  <RefreshCw className="animate-spin" size={18} /> Uploading...
+                  <RefreshCw className="animate-spin" size={16} /> Uploading...
                 </>
               ) : (
                 <>
-                  Upload & Analyze Drawing <ArrowRight size={18} />
+                  Upload & Analyze Drawing <ArrowRight size={16} />
                 </>
               )}
             </button>

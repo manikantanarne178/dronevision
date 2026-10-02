@@ -1,40 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Leaf,
   Sun,
-  Droplet,
-  Trees,
+  Droplets,
+  TreePine,
   Zap,
-  Trash2,
-  Award,
-  CheckCircle,
   RefreshCw,
-  Lightbulb,
+  FileCode,
 } from "lucide-react";
 import AutoDCRService from "../../services/autodcrService";
 import type { GreenBuildingResponse, GreenBuildingScore } from "../../types/autodcr";
-import ProgressBar from "../../components/common/ProgressBar";
 import ScoreCard from "../../components/common/ScoreCard";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import ErrorState from "../../components/common/ErrorState";
 import StatusBadge from "../../components/common/StatusBadge";
+import AutoDCRProjectPicker from "../../components/autodcr/AutoDCRProjectPicker";
+import AutoDCRProjectBar from "../../components/autodcr/AutoDCRProjectBar";
 import "./GreenBuilding.css";
 
 export default function GreenBuilding() {
   const [searchParams] = useSearchParams();
-  const fileIdParam = searchParams.get("file_id") || localStorage.getItem("current_file_id") || "drawing_01.dxf";
 
-  const [standard, setStandard] = useState<string>("GRIHA");
+  const rawId =
+    searchParams.get("file_id") ||
+    localStorage.getItem("current_file_id") ||
+    "";
+  const fileIdParam = rawId.includes("\\") || rawId.includes("/")
+    ? rawId.split(/[\\/]/).pop() || ""
+    : rawId;
+  const initialStandard = searchParams.get("standard") || "GRIHA";
+
+  const [standard, setStandard] = useState<string>(initialStandard);
   const [greenRes, setGreenRes] = useState<GreenBuildingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    runEvaluation();
-  }, [fileIdParam, standard]);
-
-  const runEvaluation = async () => {
+  const runEvaluation = useCallback(async () => {
+    if (!fileIdParam) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -43,15 +49,35 @@ export default function GreenBuilding() {
       setGreenRes(res);
     } catch (err: any) {
       console.error(err);
-      setError(err.response?.data?.detail || err.message || "Green building evaluation failed");
+      const msg = err.response?.data?.detail || err.message || "Green Building evaluation failed";
+      setError(msg);
+      if (err.response?.status === 404) {
+        localStorage.removeItem("current_file_id");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [fileIdParam, standard]);
+
+  useEffect(() => {
+    runEvaluation();
+  }, [runEvaluation]);
+
+  if (!fileIdParam) {
+    return (
+      <div className="autodcr-green-container space-y-6">
+        <AutoDCRProjectPicker
+          title="Select Project for Green Building & Sustainability Audit"
+          subtitle="Choose any registered municipal drawing project to evaluate GRIHA / IGBC sustainability parameters."
+          onSelectProject={(id) => window.location.assign(`/autodcr/green-building?file_id=${encodeURIComponent(id)}&standard=${encodeURIComponent(standard)}`)}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
-      <div className="autodcr-green-container">
+      <div className="autodcr-green-container space-y-6">
         <SkeletonLoader type="card" count={5} />
         <SkeletonLoader type="chart" count={1} />
       </div>
@@ -59,48 +85,59 @@ export default function GreenBuilding() {
   }
 
   if (error) {
-    return <ErrorState message={error} onRetry={runEvaluation} />;
+    return (
+      <div className="autodcr-green-container space-y-6">
+        <ErrorState
+          message={error}
+          onRetry={runEvaluation}
+          actionText="Select Another Project"
+          onAction={() => window.location.assign("/autodcr/projects")}
+        />
+      </div>
+    );
   }
 
   const scores: GreenBuildingScore = greenRes?.green_building || {
-    solar_score: 88,
-    water_score: 92,
-    landscape_score: 85,
-    energy_score: 90,
-    waste_score: 80,
-    overall_rating: "5 Star GRIHA Rated",
-    compliance_percentage: 87,
-    recommendations: [
-      "Increase rooftop solar panel coverage from 15% to 25% of available roof area.",
-      "Install dual-flush water fixtures across all restrooms.",
-      "Expand native species softscape area by 50 sq.m.",
-      "Implement organic waste composter (OWC) in stilt zone.",
-    ],
+    solar_score: 0,
+    water_score: 0,
+    landscape_score: 0,
+    energy_score: 0,
+    waste_score: 0,
+    overall_rating: "Under Review",
+    compliance_percentage: 0,
+    recommendations: [],
   };
 
+  const overallPct = scores.compliance_percentage || scores.total_score || 0;
+
   return (
-    <div className="autodcr-green-container">
+    <div className="autodcr-green-container space-y-6">
+      <AutoDCRProjectBar
+        currentProjectId={fileIdParam}
+        onProjectChange={(id) => window.location.assign(`/autodcr/green-building?file_id=${encodeURIComponent(id)}&standard=${encodeURIComponent(standard)}`)}
+      />
+
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <Leaf className="text-emerald-400" size={28} />
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Leaf className="text-emerald-600" size={22} />
               Green Building & Environmental Rating
             </h1>
-            <StatusBadge status="CERTIFIED" />
+            <StatusBadge status="CERTIFIED" label={scores.overall_rating || "Evaluated"} />
           </div>
-          <p className="text-slate-400 text-sm mt-1">
-            Evaluating under standard: <span className="text-emerald-400 font-bold">{standard}</span> | File:{" "}
-            <span className="text-slate-300 font-mono">{fileIdParam}</span>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5 flex items-center gap-1.5">
+            Standard: <span className="text-emerald-700 font-bold">{standard}</span> | File:{" "}
+            <span className="text-slate-700 font-mono font-semibold flex items-center gap-1"><FileCode className="w-3.5 h-3.5 text-slate-400" />{fileIdParam}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <select
             value={standard}
             onChange={(e) => setStandard(e.target.value)}
-            className="bg-slate-950 text-white text-xs font-bold px-3 py-2 rounded-xl border border-slate-800"
+            className="bg-slate-50 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 focus:outline-none cursor-pointer"
           >
             {["GRIHA", "IGBC", "MUNICIPAL_GREEN", "LEED_INDIA"].map((s) => (
               <option key={s} value={s}>
@@ -111,102 +148,96 @@ export default function GreenBuilding() {
 
           <button
             onClick={runEvaluation}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all inline-flex items-center gap-2"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer"
+            title="Re-evaluate Green Score"
           >
-            <RefreshCw size={14} /> Re-evaluate
+            <RefreshCw size={15} />
           </button>
         </div>
       </div>
 
-      {/* Main Score & Rating Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Main Scorecard + Category Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <ScoreCard
-          score={scores.compliance_percentage || 87}
-          title="Overall Green Rating"
-          subtitle={scores.overall_rating || "5 Star GRIHA Rated"}
-          icon={<Award className="text-emerald-400" size={24} />}
+          title="Overall Sustainability"
+          score={overallPct}
+          subtitle={scores.overall_rating || "Rating Complete"}
         />
 
-        <div className="md:col-span-2 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-6 flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-2">
-            <Award className="text-emerald-400" size={32} />
-            <div>
-              <h3 className="text-xl font-extrabold text-white">
-                {scores.overall_rating || "5 Star Gold Rated"}
-              </h3>
-              <p className="text-xs text-emerald-300">Certified Sustainable Architectural Design</p>
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Solar & Renewable
+            </p>
+            <h3 className="text-2xl font-black text-amber-500 font-mono mt-1">
+              {scores.solar_score || 0}%
+            </h3>
+            <span className="text-[11px] text-slate-400">Rooftop Photovoltaic</span>
           </div>
-          <p className="text-slate-400 text-xs leading-relaxed">
-            The project satisfies sustainable site development, energy efficiency, water management,
-            and waste management criteria in accordance with municipal environmental bye-laws.
-          </p>
+          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500">
+            <Sun size={20} />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Water Conservation
+            </p>
+            <h3 className="text-2xl font-black text-cyan-600 font-mono mt-1">
+              {scores.water_score || 0}%
+            </h3>
+            <span className="text-[11px] text-slate-400">Rainwater Harvesting</span>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-600">
+            <Droplets size={20} />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Softscape & Ecology
+            </p>
+            <h3 className="text-2xl font-black text-emerald-600 font-mono mt-1">
+              {scores.landscape_score || 0}%
+            </h3>
+            <span className="text-[11px] text-slate-400">Native Green Canopy</span>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+            <TreePine size={20} />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Energy Efficiency
+            </p>
+            <h3 className="text-2xl font-black text-indigo-600 font-mono mt-1">
+              {scores.energy_score || 0}%
+            </h3>
+            <span className="text-[11px] text-slate-400">Daylighting & Thermal</span>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+            <Zap size={20} />
+          </div>
         </div>
       </div>
 
-      {/* 5 Sub-category Cards */}
-      <div className="autodcr-green-grid">
-        <div className="autodcr-green-card">
-          <div>
-            <Sun className="text-amber-400 mb-2" size={28} />
-            <h4 className="font-bold text-white text-base">Solar Score</h4>
-            <p className="text-xs text-slate-400">Rooftop Solar PV</p>
-          </div>
-          <ProgressBar progress={scores.solar_score} color="amber" />
+      {/* Advisory Recommendations */}
+      {scores.recommendations && scores.recommendations.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-3">
+          <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+            GRIHA / Sustainability Audit Recommendations
+          </h3>
+          <ul className="space-y-2 text-xs text-slate-600 list-disc list-inside">
+            {scores.recommendations.map((rec, i) => (
+              <li key={i} className="leading-relaxed">{rec}</li>
+            ))}
+          </ul>
         </div>
-
-        <div className="autodcr-green-card">
-          <div>
-            <Droplet className="text-cyan-400 mb-2" size={28} />
-            <h4 className="font-bold text-white text-base">Water Score</h4>
-            <p className="text-xs text-slate-400">RWH & Recycling</p>
-          </div>
-          <ProgressBar progress={scores.water_score} color="cyan" />
-        </div>
-
-        <div className="autodcr-green-card">
-          <div>
-            <Trees className="text-emerald-400 mb-2" size={28} />
-            <h4 className="font-bold text-white text-base">Landscape Score</h4>
-            <p className="text-xs text-slate-400">Softscape Green</p>
-          </div>
-          <ProgressBar progress={scores.landscape_score} color="emerald" />
-        </div>
-
-        <div className="autodcr-green-card">
-          <div>
-            <Zap className="text-indigo-400 mb-2" size={28} />
-            <h4 className="font-bold text-white text-base">Energy Score</h4>
-            <p className="text-xs text-slate-400">EPI & HVAC</p>
-          </div>
-          <ProgressBar progress={scores.energy_score} color="indigo" />
-        </div>
-
-        <div className="autodcr-green-card">
-          <div>
-            <Trash2 className="text-rose-400 mb-2" size={28} />
-            <h4 className="font-bold text-white text-base">Waste Score</h4>
-            <p className="text-xs text-slate-400">OWC & Segregation</p>
-          </div>
-          <ProgressBar progress={scores.waste_score} color="rose" />
-        </div>
-      </div>
-
-      {/* Environmental Recommendations */}
-      <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-6 space-y-4">
-        <h3 className="font-bold text-white text-lg flex items-center gap-2">
-          <Lightbulb className="text-amber-400" size={20} />
-          Environmental Optimization Recommendations
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {(scores.recommendations || []).map((rec, i) => (
-            <div key={i} className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300">
-              <CheckCircle className="text-emerald-400 shrink-0 mt-0.5" size={16} />
-              <span>{rec}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

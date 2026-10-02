@@ -22,7 +22,6 @@ const scene = gltf.scene;
 
   const {
     tool,
-    measurementPoints,
     setMeasurementPoints,
   } = useViewer();
 

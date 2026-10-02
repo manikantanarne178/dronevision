@@ -1,71 +1,47 @@
-.flight-stats{
-
-display:grid;
-
-grid-template-columns:repeat(4,1fr);
-
-gap:20px;
-
+.flight-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 
-.flight-card{
-
-background:#1e293b;
-
-border-radius:16px;
-
-padding:25px;
-
-border:1px solid #334155;
-
-transition:.3s;
-
+.stat-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
 }
 
-.flight-card:hover{
-
-transform:translateY(-3px);
-
-border-color:#06b6d4;
-
+.stat-card:hover {
+  border-color: #06b6d4;
+  box-shadow: 0 4px 6px -1px rgba(6, 182, 212, 0.1);
 }
 
-.flight-card h3{
-
-font-size:15px;
-
-color:#94a3b8;
-
-margin-bottom:12px;
-
+.stat-card h4 {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
 }
 
-.flight-card span{
-
-font-size:32px;
-
-font-weight:700;
-
-color:white;
-
+.stat-card span {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-@media(max-width:900px){
-
-.flight-stats{
-
-grid-template-columns:repeat(2,1fr);
-
+@media (max-width: 900px) {
+  .flight-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
-}
-
-@media(max-width:600px){
-
-.flight-stats{
-
-grid-template-columns:1fr;
-
-}
-
+@media (max-width: 600px) {
+  .flight-stats {
+    grid-template-columns: 1fr;
+  }
 }

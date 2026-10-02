@@ -4,32 +4,32 @@ import "./NotFound.css";
 
 export default function NotFound() {
   return (
-    <div className="autodcr-404-container p-6">
-      <div className="w-20 h-20 rounded-3xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">
-        <AlertOctagon className="text-rose-400" size={48} />
+    <div className="autodcr-404-container p-6 max-w-lg mx-auto text-center">
+      <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-4 shadow-xs">
+        <AlertOctagon size={32} />
       </div>
 
       <div>
-        <h1 className="text-6xl font-black text-white tracking-tight">404</h1>
-        <h2 className="text-2xl font-bold text-slate-200 mt-2">Page Not Found</h2>
-        <p className="text-slate-400 text-sm mt-1 max-w-md">
-          The requested AutoDCR route or scrutiny record does not exist or has been moved.
+        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">404</h1>
+        <h2 className="text-base font-semibold text-slate-800 mt-1">Resource / Route Not Found</h2>
+        <p className="text-slate-500 text-xs mt-1.5 leading-relaxed max-w-sm mx-auto">
+          The requested AutoDCR municipal scrutiny record, CAD dataset or spatial route does not exist or has been relocated.
         </p>
       </div>
 
-      <div className="flex items-center gap-4 pt-4">
+      <div className="flex items-center justify-center gap-3 pt-6">
         <button
           onClick={() => window.history.back()}
-          className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition-all flex items-center gap-2"
+          className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
         >
-          <ArrowLeft size={16} /> Go Back
+          <ArrowLeft size={14} /> Go Back
         </button>
 
         <Link
-          to="/autodcr-dashboard"
-          className="px-6 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition-all flex items-center gap-2 shadow-lg shadow-cyan-500/20"
+          to="/"
+          className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-xs transition-all flex items-center gap-1.5 shadow-xs"
         >
-          <Home size={16} /> Return to Dashboard
+          <Home size={14} /> Return to Dashboard
         </Link>
       </div>
     </div>

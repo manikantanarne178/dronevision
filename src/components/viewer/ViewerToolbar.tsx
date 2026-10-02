@@ -5,6 +5,7 @@ import {
   Download,
   Crosshair,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useParams } from "react-router-dom";
@@ -20,22 +21,22 @@ const toolButtons: ToolButton[] = [
   {
     icon: Move3D,
     tool: "move",
-    label: "Move",
+    label: "Pan / Move",
   },
   {
     icon: RotateCcw,
     tool: "rotate",
-    label: "Rotate",
+    label: "Orbit / Rotate",
   },
   {
     icon: Ruler,
     tool: "measure",
-    label: "Measure",
+    label: "Measure Distance",
   },
   {
     icon: Crosshair,
     tool: "crosshair",
-    label: "Crosshair",
+    label: "Inspection Crosshair",
   },
 ];
 
@@ -55,56 +56,51 @@ export default function ViewerToolbar() {
     : "";
 
   return (
-    <div className="w-24 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-6 gap-4">
-
+    <div className="w-16 bg-white border-r border-slate-200 flex flex-col items-center py-4 gap-2 z-10 shrink-0">
       {/* Viewer Tools */}
-
       {toolButtons.map(({ icon: Icon, tool: t, label }) => (
         <button
           key={t}
           title={label}
           onClick={() => setTool(t)}
-          className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-200
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-150 cursor-pointer
             ${
               tool === t
-                ? "bg-cyan-500 text-white shadow-lg"
-                : "bg-slate-950 hover:bg-slate-800 text-slate-300"
+                ? "bg-cyan-50 text-cyan-600 border border-cyan-300 shadow-xs font-semibold"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent"
             }`}
         >
-          <Icon size={24} />
+          <Icon size={18} />
         </button>
       ))}
 
-      <div className="h-px w-12 bg-slate-700 my-2" />
+      <div className="h-px w-8 bg-slate-200 my-2" />
 
       {/* Reset Camera */}
-
       <button
-        title="Reset Camera"
+        title="Reset Camera Orientation"
         onClick={resetCamera}
-        className="w-14 h-14 rounded-xl flex items-center justify-center bg-slate-950 hover:bg-slate-800 text-slate-300 transition-all"
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent transition-all cursor-pointer"
       >
-        <RefreshCw size={22} />
+        <RefreshCw size={18} />
       </button>
 
       {/* Clear Measurements */}
-
       <button
-        title="Clear Measurements"
+        title="Clear Active Measurements"
         onClick={clearMeasurements}
-        className="w-14 h-14 rounded-xl flex items-center justify-center bg-slate-950 hover:bg-slate-800 text-slate-300 transition-all"
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-transparent transition-all cursor-pointer"
       >
-        <Ruler size={22} />
+        <Trash2 size={18} />
       </button>
 
       {/* Download */}
-
       <button
-        title="Download Model"
+        title="Export 3D Model Asset (PLY/OBJ)"
         onClick={() => downloadModel(modelUrl)}
-        className="w-14 h-14 rounded-xl flex items-center justify-center bg-slate-950 hover:bg-slate-800 text-slate-300 transition-all"
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 border border-transparent transition-all cursor-pointer mt-auto"
       >
-        <Download size={22} />
+        <Download size={18} />
       </button>
     </div>
   );
