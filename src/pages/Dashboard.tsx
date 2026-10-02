@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import API from "../api";
+import API, { ensureAuthToken } from "../api";
 import {
   Image,
   Box,
@@ -13,6 +13,7 @@ import {
   MapPin,
   Calendar,
   Trash2,
+  AlertCircle,
 } from "lucide-react";
 
 import StatCard from "../components/dashboard/StatCard";
@@ -27,6 +28,7 @@ export default function Dashboard() {
   } = useDroneSurvey();
   const [backendProjects, setBackendProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,14 +37,18 @@ export default function Dashboard() {
 
   const loadProjects = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      await ensureAuthToken();
       const res = await API.get("/api/projects/");
       if (res.data?.success && Array.isArray(res.data.projects)) {
         setBackendProjects(res.data.projects);
       } else if (Array.isArray(res.data)) {
         setBackendProjects(res.data);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Backend projects fetch notice:", err);
+      setError("Unable to connect to processing server (https://dronbackend.onrender.com)");
     } finally {
       setLoading(false);
     }
@@ -154,14 +160,28 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {surveys.length === 0 && backendProjects.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12 text-slate-400">
+              <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-600">Loading projects from backend...</p>
+            </div>
+          ) : error ? (
+            <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <div>
+                <p className="font-semibold">Backend Connection Notice</p>
+                <p className="text-rose-600">{error}</p>
+              </div>
+            </div>
+          ) : surveys.length === 0 && backendProjects.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <MapPin className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-              <p className="text-sm font-semibold text-slate-700">0 Surveys Processed</p>
+              <p className="text-sm font-semibold text-slate-700">No projects available</p>
               <p className="text-xs text-slate-400 mt-1">Upload aerial imagery to generate georeferenced flight paths and 3D models.</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
+              {/* Local Surveys */}
               {surveys.map((survey) => (
                 <div
                   key={survey.id}
@@ -229,6 +249,70 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
+
+              {/* Backend-only Projects */}
+              {backendProjects
+                .filter((p) => !surveys.some((s) => s.backendProjectId === p.project_id || s.id === p.project_id))
+                .map((proj) => (
+                  <div
+                    key={proj.project_id}
+                    className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 p-2 rounded-xl transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                        <Box size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => navigate(`/viewer/${proj.project_id}`)}
+                            className="font-bold text-slate-900 text-xs sm:text-sm truncate hover:text-cyan-700 text-left cursor-pointer"
+                          >
+                            {proj.name || proj.project_id}
+                          </button>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">
+                            3D Mesh Ready
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5 flex-wrap">
+                          {proj.generated_at && (
+                            <span className="flex items-center gap-1">
+                              <Calendar size={11} />
+                              {new Date(proj.generated_at).toLocaleDateString()}
+                            </span>
+                          )}
+                          <span>•</span>
+                          <span>{proj.images_uploaded || 0} Images</span>
+                          {proj.vertices > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="text-cyan-700 font-medium font-mono">
+                                {proj.vertices.toLocaleString()} Vertices
+                              </span>
+                            </>
+                          )}
+                          {proj.ground_area > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono text-emerald-700">
+                                {proj.ground_area.toLocaleString()} m²
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => navigate(`/viewer/${proj.project_id}`)}
+                        className="px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                      >
+                        View 3D Model
+                      </button>
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
         </div>
