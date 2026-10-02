@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import API from "../api";
 import { Eye, EyeOff, ShieldCheck, Lock, Mail, User as UserIcon, Building2, AlertCircle } from "lucide-react";
 
 export default function Login() {
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
 
   const [username, setUsername] = useState("");
@@ -67,7 +69,7 @@ export default function Login() {
         console.warn("Could not fetch user profile:", meErr);
       }
 
-      window.location.href = "/";
+      navigate("/");
     } catch (err: any) {
       console.error("LOGIN ERROR:", err);
       const msg =
