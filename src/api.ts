@@ -41,18 +41,29 @@ API.interceptors.response.use(
 );
 
 /**
- * Ping backend health endpoint to check wakefulness and avoid cold-start upload timeouts
+ * Ping backend health endpoint with automatic retry to warm up Render cold starts
  */
-export async function pingBackendHealth(): Promise<boolean> {
-  try {
-    const res = await axios.get(`${API_BASE_URL}/health`, {
-      timeout: 15000,
-    });
-    return res.status === 200;
-  } catch (err) {
-    console.warn("Backend health ping failed or waking up:", err);
-    return false;
+export async function pingBackendHealth(
+  onAttempt?: (attempt: number, maxAttempts: number) => void
+): Promise<boolean> {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      onAttempt?.(attempt, maxAttempts);
+      const res = await axios.get(`${API_BASE_URL}/health`, {
+        timeout: 12000,
+      });
+      if (res.status === 200) {
+        return true;
+      }
+    } catch (err) {
+      console.warn(`Health check attempt ${attempt}/${maxAttempts} failed:`, err);
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
   }
+  return false;
 }
 
 export default API;
