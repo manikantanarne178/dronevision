@@ -8,14 +8,13 @@ import {
 import { useParams } from "react-router-dom";
 
 import { useViewer } from "../../context/ViewerContext";
-
 import CameraController from "./CameraController";
 import MeasurementLayer from "./MeasurementLayer";
 import Crosshair from "./Crosshair";
 import AnalyticsPanel from "./AnalyticsPanel";
 import ModelErrorBoundary from "./ModelErrorBoundary";
 import Model from "./Model";
-import API from "../../api";
+import DroneApiService from "../../services/droneApiService";
 import { Loader2, AlertCircle } from "lucide-react";
 
 function Loader() {
@@ -33,53 +32,55 @@ export default function ViewerCanvas() {
   const { tool } = useViewer();
   const { projectId } = useParams();
   const [modelUrl, setModelUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectId) {
+      setModelUrl(null);
+      setLoading(false);
       return;
     }
 
+    let isCancelled = false;
     let objectUrl: string | null = null;
+
+    // Immediately clear previous model state to prevent stale data display
+    setModelUrl(null);
+    setError(null);
+    setLoading(true);
 
     async function loadModel() {
       try {
-        setError(null);
         console.log(`[PIPELINE]\nstage=MODEL_FETCH\nmethod=GET\nurl=/api/projects/${projectId}/model`);
 
-        let response;
-        try {
-          response = await API.get(`/api/projects/${projectId}/model`, {
-            responseType: "blob",
-          });
-        } catch {
-          // Fallback to alternate reconstruction model route
-          console.log(`[PIPELINE]\nstage=MODEL_FETCH\nmethod=GET\nurl=/api/reconstruction/model/${projectId}`);
-          response = await API.get(`/api/reconstruction/model/${projectId}`, {
-            responseType: "blob",
-          });
-        }
+        const { blob } = await DroneApiService.getDroneModelBlob(projectId!);
 
-        if (response.data && response.data.size > 0) {
-          console.log(`[PIPELINE_SUCCESS]\nstage=MODEL_FETCH\nstatus=200\nurl=/api/projects/${projectId}/model\nresponse=${response.data.size} bytes`);
+        if (isCancelled) return;
+
+        if (blob && blob.size > 0) {
+          console.log(`[PIPELINE_SUCCESS]\nstage=MODEL_FETCH\nstatus=200\nurl=/api/projects/${projectId}/model\nresponse=${blob.size} bytes`);
           console.log(`[PIPELINE]\nstage=MODEL_VIEWER\nmethod=INITIALIZE_CANVAS\nurl=threejs_viewport`);
-          objectUrl = URL.createObjectURL(response.data);
+          objectUrl = URL.createObjectURL(blob);
           setModelUrl(objectUrl);
         } else {
           setError("3D reconstruction model file is empty or still generating.");
         }
       } catch (err: any) {
+        if (isCancelled) return;
         console.error(`[PIPELINE_FAILURE]\nstage=MODEL_FETCH\nurl=/api/projects/${projectId}/model\nerrorMessage=${err?.message || err}`);
-        setError(
-          err.response?.data?.detail ||
-            "3D reconstruction model not available for this project yet."
-        );
+        setError("3D model is not available for this project.");
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     }
 
     loadModel();
 
     return () => {
+      isCancelled = true;
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
@@ -89,7 +90,17 @@ export default function ViewerCanvas() {
   if (!projectId) {
     return (
       <div className="flex h-full items-center justify-center bg-slate-900 text-slate-400 text-sm rounded-xl">
-        No project dataset selected.
+        No drone project selected.
+      </div>
+    );
+  }
+
+  if (loading && !modelUrl) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center bg-slate-900 text-slate-300 p-6 text-center rounded-xl space-y-2.5">
+        <Loader2 className="w-7 h-7 text-cyan-500 animate-spin" />
+        <p className="text-xs font-semibold">Fetching 3D GLB model from backend...</p>
+        <p className="text-[11px] font-mono text-slate-500">{projectId}</p>
       </div>
     );
   }

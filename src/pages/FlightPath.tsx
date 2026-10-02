@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import API from "../api";
+import DroneApiService from "../services/droneApiService";
 import "./FlightPath.css";
 
 import FlightMap from "../components/flight/FlightMap";
 import FlightSidebar from "../components/flight/FlightSidebar";
 import FlightStats from "../components/flight/FlightStats";
+import DroneProjectBar from "../components/viewer/DroneProjectBar";
 import { useDroneSurvey } from "../context/DroneSurveyContext";
 import type { FlightImageInfo } from "../components/flight/FlightSidebar";
 import {
@@ -37,6 +38,10 @@ const FlightPath = () => {
 
   // Load flight images from active survey or backend `/gps/`
   useEffect(() => {
+    // Clear previous flight images first to avoid stale data display
+    setFlightImages([]);
+    setSelectedImage(null);
+
     if (activeSurvey && activeSurvey.images.length > 0) {
       const mapped: FlightImageInfo[] = activeSurvey.images
         .filter((img) => img.hasGPS && img.latitude !== undefined && img.longitude !== undefined)
@@ -62,9 +67,9 @@ const FlightPath = () => {
       const fetchLiveGPS = async () => {
         try {
           console.log("[PIPELINE]\nstage=GPS_FETCH\nmethod=GET\nurl=/gps/");
-          const res = await API.get("/gps/");
-          console.log(`[PIPELINE_SUCCESS]\nstage=GPS_FETCH\nstatus=200\nurl=/gps/\nresponse=${res.data?.count} locations`);
-          const locations: FlightImageInfo[] = res.data?.locations || [];
+          const gpsRes = await DroneApiService.getDroneGPS();
+          console.log(`[PIPELINE_SUCCESS]\nstage=GPS_FETCH\nstatus=200\nurl=/gps/\nresponse=${gpsRes.count} locations`);
+          const locations: FlightImageInfo[] = gpsRes.locations || [];
           setFlightImages(locations);
           if (locations.length > 0) {
             setSelectedImage(locations[0]);
@@ -77,9 +82,24 @@ const FlightPath = () => {
     }
   }, [activeSurvey]);
 
+  const activeId = projectId || activeSurvey?.backendProjectId || activeSurvey?.id || "";
+
   return (
-    <div className="flight-page space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
+    <div className="flight-page space-y-4 max-w-7xl mx-auto">
+      {/* Switch Project Header Bar */}
+      <DroneProjectBar
+        currentProjectId={activeId}
+        onProjectChange={(newId) => {
+          const match = surveys.find((s) => s.backendProjectId === newId || s.id === newId);
+          if (match) {
+            setActiveSurveyId(match.id);
+          } else {
+            setActiveSurveyId(newId);
+          }
+        }}
+      />
+
+      {/* Flight Path Title & Stats */}
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -100,22 +120,7 @@ const FlightPath = () => {
           </p>
         </div>
 
-        {/* Survey Switcher / Selector */}
         <div className="flex items-center gap-2">
-          {surveys.length > 1 && (
-            <select
-              value={activeSurvey?.id || ""}
-              onChange={(e) => setActiveSurveyId(e.target.value)}
-              className="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              {surveys.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.imageCount} imgs)
-                </option>
-              ))}
-            </select>
-          )}
-
           <Link
             to="/upload"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-700 rounded-xl transition-all shadow-xs shrink-0"
@@ -134,10 +139,10 @@ const FlightPath = () => {
               GPS Survey Footprint
             </span>
             <span className="text-lg font-bold font-mono text-cyan-300">
-              {activeSurvey.areaSqm.toLocaleString()} m²
+              {activeSurvey.areaSqm > 0 ? `${activeSurvey.areaSqm.toLocaleString()} m²` : "Unavailable"}
             </span>
             <span className="text-[11px] text-slate-400 block mt-0.5">
-              ({activeSurvey.areaAcres} acres / {activeSurvey.areaHectares} ha)
+              {activeSurvey.areaAcres > 0 ? `(${activeSurvey.areaAcres} acres / ${activeSurvey.areaHectares} ha)` : "Calculated footprint"}
             </span>
           </div>
 
@@ -146,7 +151,7 @@ const FlightPath = () => {
               Perimeter Length
             </span>
             <span className="text-lg font-bold font-mono text-emerald-300">
-              {activeSurvey.perimeterM.toLocaleString()} m
+              {activeSurvey.perimeterM > 0 ? `${activeSurvey.perimeterM.toLocaleString()} m` : "Unavailable"}
             </span>
             <span className="text-[11px] text-slate-400 block mt-0.5">
               WGS84 Closed Boundary
@@ -170,7 +175,7 @@ const FlightPath = () => {
               Elevation Delta (ΔZ)
             </span>
             <span className="text-lg font-bold font-mono text-indigo-300">
-              {activeSurvey.elevation
+              {activeSurvey.elevation && activeSurvey.elevation.deltaElevation !== undefined
                 ? `${activeSurvey.elevation.deltaElevation.toFixed(1)} m`
                 : "Unavailable"}
             </span>

@@ -1,71 +1,117 @@
 import { useEffect, useState } from "react";
-import API from "../../api";
 import { useParams } from "react-router-dom";
+import DroneApiService from "../../services/droneApiService";
 import { Image as ImageIcon, HardDrive, Ruler, Map, Box } from "lucide-react";
 
-interface Analytics {
-  images: number;
-  storage: string;
-  width: number;
-  length: number;
-  height: number;
-  area: number;
-  volume: number;
+interface AnalyticsData {
+  images: number | null;
+  storage: string | null;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  area: number | null;
+  volume: number | null;
 }
 
 export default function AnalyticsPanel() {
   const { projectId } = useParams();
-  const [analytics, setAnalytics] = useState<Analytics>({
-    images: 0,
-    storage: "...",
-    width: 0,
-    length: 0,
-    height: 0,
-    area: 0,
-    volume: 0,
+  const [analytics, setAnalytics] = useState<AnalyticsData>({
+    images: null,
+    storage: null,
+    width: null,
+    length: null,
+    height: null,
+    area: null,
+    volume: null,
   });
 
   useEffect(() => {
     if (!projectId) return;
 
+    let isMounted = true;
+
+    // Reset immediately on project switch
+    setAnalytics({
+      images: null,
+      storage: null,
+      width: null,
+      length: null,
+      height: null,
+      area: null,
+      volume: null,
+    });
+
     console.log(`[PIPELINE]\nstage=ANALYTICS_FETCH\nmethod=GET\nurl=/api/analytics/${projectId}`);
 
-    Promise.all([
-      API.get(`/api/projects/${projectId}/model`, {
-        responseType: "blob",
-      }),
-      API.get(`/api/analytics/${projectId}`),
-    ])
-      .then(([modelRes, analyticsRes]) => {
-        console.log(`[PIPELINE_SUCCESS]\nstage=ANALYTICS_FETCH\nstatus=200\nurl=/api/analytics/${projectId}\nresponse=${JSON.stringify(analyticsRes.data)}`);
-        const sizeMB = (modelRes.data.size / 1024 / 1024).toFixed(2);
-        const meta = analyticsRes.data;
+    Promise.allSettled([
+      DroneApiService.getDroneModelBlob(projectId),
+      DroneApiService.getDroneAnalytics(projectId),
+    ]).then(([modelRes, analyticsRes]) => {
+      if (!isMounted) return;
 
+      let sizeStr: string | null = null;
+      if (modelRes.status === "fulfilled") {
+        sizeStr = `${modelRes.value.sizeMB} MB`;
+      }
+
+      if (analyticsRes.status === "fulfilled") {
+        const meta = analyticsRes.value;
+        console.log(`[PIPELINE_SUCCESS]\nstage=ANALYTICS_FETCH\nstatus=200\nurl=/api/analytics/${projectId}\nresponse=${JSON.stringify(meta)}`);
         setAnalytics({
-          images: meta.images_uploaded ?? 0,
-          storage: `${sizeMB} MB`,
-          width: Number(meta.dimensions?.width ?? 0),
-          length: Number(meta.dimensions?.length ?? 0),
-          height: Number(meta.dimensions?.height ?? 0),
-          area: Number(meta.surface_area ?? 0),
-          volume: Number(meta.volume ?? 0),
+          images: meta.images_uploaded ?? null,
+          storage: sizeStr,
+          width: meta.width && meta.width > 0 ? meta.width : null,
+          length: meta.length && meta.length > 0 ? meta.length : null,
+          height: meta.height && meta.height > 0 ? meta.height : null,
+          area: meta.surface_area && meta.surface_area > 0 ? meta.surface_area : (meta.ground_area && meta.ground_area > 0 ? meta.ground_area : null),
+          volume: meta.volume && meta.volume > 0 ? meta.volume : null,
         });
-      })
-      .catch((err) => {
-        console.error(`[PIPELINE_FAILURE]\nstage=ANALYTICS_FETCH\nurl=/api/analytics/${projectId}\nerrorMessage=${err?.message || err}`);
-      });
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, [projectId]);
 
   if (!projectId) return null;
 
   const rows = [
-    { icon: ImageIcon, label: "Images", value: String(analytics.images) },
-    { icon: HardDrive, label: "Storage", value: analytics.storage },
-    { icon: Ruler, label: "Width", value: `${(analytics.width * 100).toFixed(1)} cm` },
-    { icon: Ruler, label: "Length", value: `${(analytics.length * 100).toFixed(1)} cm` },
-    { icon: Ruler, label: "Height", value: `${(analytics.height * 100).toFixed(1)} cm` },
-    { icon: Map, label: "Area", value: `${analytics.area.toFixed(2)} m²` },
-    { icon: Box, label: "Volume", value: analytics.volume > 0 ? `${analytics.volume.toFixed(2)} m³` : "N/A" },
+    {
+      icon: ImageIcon,
+      label: "Images",
+      value: analytics.images !== null ? String(analytics.images) : "Unavailable",
+    },
+    {
+      icon: HardDrive,
+      label: "Storage",
+      value: analytics.storage || "Unavailable",
+    },
+    {
+      icon: Ruler,
+      label: "Width",
+      value: analytics.width !== null ? `${analytics.width.toFixed(2)} m` : "Unavailable",
+    },
+    {
+      icon: Ruler,
+      label: "Length",
+      value: analytics.length !== null ? `${analytics.length.toFixed(2)} m` : "Unavailable",
+    },
+    {
+      icon: Ruler,
+      label: "Height",
+      value: analytics.height !== null ? `${analytics.height.toFixed(2)} m` : "Unavailable",
+    },
+    {
+      icon: Map,
+      label: "Area",
+      value: analytics.area !== null ? `${analytics.area.toFixed(2)} m²` : "Unavailable",
+    },
+    {
+      icon: Box,
+      label: "Volume",
+      value: analytics.volume !== null && analytics.volume > 0 ? `${analytics.volume.toFixed(2)} m³` : "N/A",
+    },
   ];
 
   return (
