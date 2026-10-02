@@ -41,6 +41,32 @@ API.interceptors.response.use(
 );
 
 /**
+ * Ensures an active authentication token exists, fetching a demo token if none is present.
+ */
+export async function ensureAuthToken(): Promise<string | null> {
+  const existing = localStorage.getItem("token");
+  if (existing) return existing;
+
+  try {
+    const res = await axios.post(
+      `${API_BASE_URL}/api/auth/login`,
+      {
+        email: "y21ece178@gmail.com",
+        password: "Harini@12",
+      },
+      { timeout: 15000 }
+    );
+    if (res.data?.access_token) {
+      localStorage.setItem("token", res.data.access_token);
+      return res.data.access_token;
+    }
+  } catch (err) {
+    console.warn("Auto-token resolution notice:", err);
+  }
+  return null;
+}
+
+/**
  * Ping backend health endpoint with automatic retry to warm up Render cold starts
  */
 export async function pingBackendHealth(
