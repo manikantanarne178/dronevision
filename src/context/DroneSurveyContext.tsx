@@ -19,6 +19,7 @@ import {
 import {
   type PipelineStage,
   type UIState,
+  type PipelineCorrelation,
   type PipelineErrorInfo,
   logPipeline,
   logPipelineSuccess,
@@ -46,12 +47,14 @@ interface DroneSurveyContextType {
   isUploading: boolean;
   uiState: UIState;
   pipelineError: PipelineErrorInfo | null;
+  lastUploadId: string | null;
   clearError: () => void;
   setActiveSurveyId: (id: string | null) => void;
   createSurvey: (
     files: File[],
     surveyName?: string,
-    onProgress?: (detail: UploadProgressDetail) => void
+    onProgress?: (detail: UploadProgressDetail) => void,
+    reuseUploadId?: string
   ) => Promise<DroneSurvey>;
   deleteSurvey: (id: string) => Promise<void>;
   refreshSurveys: () => Promise<void>;
@@ -75,6 +78,7 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uiState, setUiState] = useState<UIState>("IDLE");
   const [pipelineError, setPipelineError] = useState<PipelineErrorInfo | null>(null);
+  const [lastUploadId, setLastUploadId] = useState<string | null>(null);
   const uploadLockRef = useRef<boolean>(false);
 
   const clearError = useCallback(() => {
@@ -142,11 +146,12 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
     refreshSurveys();
   }, [refreshSurveys]);
 
-  // Create survey from uploaded files with robust multipart streaming & full pipeline diagnostics
+  // Create survey from uploaded files with robust multipart streaming & async background job polling
   const createSurvey = async (
     files: File[],
     surveyName?: string,
-    onProgress?: (detail: UploadProgressDetail) => void
+    onProgress?: (detail: UploadProgressDetail) => void,
+    reuseUploadId?: string
   ): Promise<DroneSurvey> => {
     if (uploadLockRef.current) {
       throw new Error("An upload operation is already in progress. Please wait.");
@@ -157,9 +162,17 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
     setPipelineError(null);
     setUiState("VALIDATING");
 
+    const requestId = `REQ_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     let currentStage: PipelineStage = "IMAGE_VALIDATION";
     let currentEndpoint = "client";
-    let activeUploadId: string | undefined = undefined;
+    let activeUploadId: string | undefined = reuseUploadId || undefined;
+    let activeJobId: string | undefined = undefined;
+    let activeProjectId: string | undefined = undefined;
+
+    const correlation: PipelineCorrelation = {
+      requestId,
+      uploadId: activeUploadId,
+    };
 
     const totalPayloadBytes = files.reduce((sum, f) => sum + f.size, 0);
     const totalPayloadMB = (totalPayloadBytes / (1024 * 1024)).toFixed(1);
@@ -170,7 +183,7 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       // -------------------------------------------------------------
       currentStage = "HEALTH";
       currentEndpoint = `${API_BASE_URL}/health`;
-      logPipeline(currentStage, "GET", currentEndpoint);
+      logPipeline(currentStage, "GET", currentEndpoint, correlation);
 
       onProgress?.({
         stage: "Checking live Render backend health...",
@@ -193,9 +206,9 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       if (isServerAwake) {
-        logPipelineSuccess(currentStage, 200, currentEndpoint, { status: "online" });
+        logPipelineSuccess(currentStage, 200, currentEndpoint, { status: "online" }, correlation);
       } else {
-        logPipelineFailure(currentStage, currentEndpoint, new Error("Server cold-start ping unconfirmed"));
+        logPipelineFailure(currentStage, currentEndpoint, new Error("Server cold-start ping unconfirmed"), undefined, undefined, undefined, correlation);
       }
 
       // Guarantee valid session authorization token exists
@@ -206,7 +219,7 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       // -------------------------------------------------------------
       currentStage = "IMAGE_VALIDATION";
       currentEndpoint = "client_validation";
-      logPipeline(currentStage, "VALIDATE", currentEndpoint);
+      logPipeline(currentStage, "VALIDATE", currentEndpoint, correlation);
 
       if (!files || files.length === 0) {
         throw new Error("No drone imagery files selected for upload.");
@@ -220,14 +233,14 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       logPipelineSuccess(currentStage, "VALID", currentEndpoint, {
         file_count: files.length,
         total_bytes: totalPayloadBytes,
-      });
+      }, correlation);
 
       // -------------------------------------------------------------
       // STAGE 7: EXIF & GNSS EXTRACTION & FLIGHT PATH
       // -------------------------------------------------------------
       currentStage = "EXIF_EXTRACTION";
       currentEndpoint = "client_exifr";
-      logPipeline(currentStage, "PARSE", currentEndpoint);
+      logPipeline(currentStage, "PARSE", currentEndpoint, correlation);
 
       onProgress?.({
         stage: `Extracting EXIF & GNSS telemetry from ${files.length} images...`,
@@ -242,125 +255,205 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       logPipelineSuccess(currentStage, "EXTRACTED", currentEndpoint, {
         images: survey.images.length,
         geotagged: survey.geotaggedImageCount,
-      });
+      }, correlation);
 
       currentStage = "GNSS_EXTRACTION";
       logPipelineSuccess(currentStage, "EXTRACTED", currentEndpoint, {
         has_gps: survey.geotaggedImageCount > 0,
         count: survey.geotaggedImageCount,
-      });
+      }, correlation);
 
       currentStage = "FLIGHT_PATH";
       logPipelineSuccess(currentStage, "COMPUTED", currentEndpoint, {
         waypoints: survey.flightPath.length,
         areaSqm: survey.areaSqm,
         perimeterM: survey.perimeterM,
-      });
+      }, correlation);
 
       // -------------------------------------------------------------
-      // STAGE 3: IMAGE UPLOAD (Multipart Streaming)
+      // STAGE 3: IMAGE UPLOAD (Skip if reusing existing valid upload)
       // -------------------------------------------------------------
-      currentStage = "IMAGE_UPLOAD";
-      currentEndpoint = `${API_BASE_URL}/api/upload/images`;
-      setUiState("UPLOADING");
-      logPipeline(currentStage, "POST", currentEndpoint);
+      let sessionUploadId = activeUploadId;
 
-      onProgress?.({
-        stage: `Streaming ${files.length} images (${totalPayloadMB} MB) to backend...`,
-        percentage: 20,
-        loadedBytes: 0,
-        totalBytes: totalPayloadBytes,
-        loadedMB: "0.0",
-        totalMB: totalPayloadMB,
-        pipelineStage: currentStage,
-        uiState: "UPLOADING",
-      });
+      if (!sessionUploadId) {
+        currentStage = "IMAGE_UPLOAD";
+        currentEndpoint = `${API_BASE_URL}/api/upload/images`;
+        setUiState("UPLOADING");
+        logPipeline(currentStage, "POST", currentEndpoint, correlation);
 
-      const formData = new FormData();
-      files.forEach((file) => formData.append("files", file));
+        onProgress?.({
+          stage: `Streaming ${files.length} images (${totalPayloadMB} MB) to backend...`,
+          percentage: 20,
+          loadedBytes: 0,
+          totalBytes: totalPayloadBytes,
+          loadedMB: "0.0",
+          totalMB: totalPayloadMB,
+          pipelineStage: currentStage,
+          uiState: "UPLOADING",
+        });
 
-      const startTime = Date.now();
+        const formData = new FormData();
+        files.forEach((file) => formData.append("files", file));
 
-      const uploadRes = await API.post("/api/upload/images", formData, {
-        timeout: 900000, // 15 minutes timeout for large datasets
-        onUploadProgress: (progressEvent) => {
-          const total = progressEvent.total || totalPayloadBytes;
-          const loaded = progressEvent.loaded;
-          const fraction = total > 0 ? loaded / total : 0;
-          // Scale upload progress between 20% and 80%
-          const percentage = Math.min(80, Math.round(20 + fraction * 60));
+        const startTime = Date.now();
 
-          const loadedMB = (loaded / (1024 * 1024)).toFixed(1);
-          const elapsedSec = (Date.now() - startTime) / 1000;
-          const speedMBs =
-            elapsedSec > 0
-              ? (loaded / (1024 * 1024) / elapsedSec).toFixed(2)
-              : "0.0";
+        const uploadRes = await API.post("/api/upload/images", formData, {
+          timeout: 900000, // 15 minutes timeout for large datasets
+          onUploadProgress: (progressEvent) => {
+            const total = progressEvent.total || totalPayloadBytes;
+            const loaded = progressEvent.loaded;
+            const fraction = total > 0 ? loaded / total : 0;
+            // Scale upload progress between 20% and 75%
+            const percentage = Math.min(75, Math.round(20 + fraction * 55));
 
-          onProgress?.({
-            stage: `Uploading: ${loadedMB} MB / ${totalPayloadMB} MB (${speedMBs} MB/s)`,
-            percentage,
-            loadedBytes: loaded,
-            totalBytes: total,
-            loadedMB,
-            totalMB: totalPayloadMB,
-            uploadSpeed: `${speedMBs} MB/s`,
-            pipelineStage: "IMAGE_UPLOAD",
-            uiState: "UPLOADING",
-          });
-        },
-      });
+            const loadedMB = (loaded / (1024 * 1024)).toFixed(1);
+            const elapsedSec = (Date.now() - startTime) / 1000;
+            const speedMBs =
+              elapsedSec > 0
+                ? (loaded / (1024 * 1024) / elapsedSec).toFixed(2)
+                : "0.0";
 
-      logPipelineSuccess(currentStage, uploadRes.status, currentEndpoint, uploadRes.data);
+            onProgress?.({
+              stage: `Uploading: ${loadedMB} MB / ${totalPayloadMB} MB (${speedMBs} MB/s)`,
+              percentage,
+              loadedBytes: loaded,
+              totalBytes: total,
+              loadedMB,
+              totalMB: totalPayloadMB,
+              uploadSpeed: `${speedMBs} MB/s`,
+              pipelineStage: "IMAGE_UPLOAD",
+              uiState: "UPLOADING",
+            });
+          },
+        });
+
+        logPipelineSuccess(currentStage, uploadRes.status, currentEndpoint, uploadRes.data, correlation);
+
+        currentStage = "UPLOAD_RESPONSE";
+        sessionUploadId = uploadRes.data?.upload_id;
+        activeUploadId = sessionUploadId;
+        correlation.uploadId = sessionUploadId;
+        setLastUploadId(sessionUploadId || null);
+
+        logPipelineSuccess(currentStage, 200, currentEndpoint, {
+          upload_id: sessionUploadId,
+          files_saved: uploadRes.data?.count,
+        }, correlation);
+
+        setUiState("UPLOAD_COMPLETE");
+      }
 
       // -------------------------------------------------------------
-      // STAGE 4: UPLOAD RESPONSE
-      // -------------------------------------------------------------
-      currentStage = "UPLOAD_RESPONSE";
-      const sessionUploadId = uploadRes.data?.upload_id;
-      activeUploadId = sessionUploadId;
-      logPipelineSuccess(currentStage, 200, currentEndpoint, {
-        upload_id: sessionUploadId,
-        files_saved: uploadRes.data?.count,
-      });
-
-      setUiState("UPLOAD_COMPLETE");
-
-      // -------------------------------------------------------------
-      // STAGE 5: RECONSTRUCTION START
+      // STAGE 5: RECONSTRUCTION START (Initiate Job)
       // -------------------------------------------------------------
       currentStage = "RECONSTRUCTION_START";
       currentEndpoint = `${API_BASE_URL}/api/reconstruction/generate`;
       setUiState("RECONSTRUCTION");
-      logPipeline(currentStage, "POST", currentEndpoint);
+      logPipeline(currentStage, "POST", currentEndpoint, correlation);
 
       onProgress?.({
-        stage: "Ingestion complete. Processing SfM photogrammetry & 3D mesh reconstruction...",
-        percentage: 85,
+        stage: "Ingestion complete. Submitting 3D SfM photogrammetry job...",
+        percentage: 78,
         totalBytes: totalPayloadBytes,
         totalMB: totalPayloadMB,
         pipelineStage: currentStage,
         uiState: "RECONSTRUCTION",
       });
 
-      const reconRes = await API.post(
+      const reconInitRes = await API.post(
         "/api/reconstruction/generate",
         {
           upload_id: sessionUploadId,
           project_name: survey.name,
+          request_id: requestId,
         },
         {
-          timeout: 300000, // 5 minutes timeout for 3D SfM reconstruction
+          timeout: 60000,
         }
       );
 
-      // -------------------------------------------------------------
-      // STAGE 6: RECONSTRUCTION RESPONSE
-      // -------------------------------------------------------------
       currentStage = "RECONSTRUCTION_RESPONSE";
-      logPipelineSuccess(currentStage, reconRes.status, currentEndpoint, reconRes.data);
+      logPipelineSuccess(currentStage, reconInitRes.status, currentEndpoint, reconInitRes.data, correlation);
 
-      const projectId = reconRes.data?.project_id;
+      const jobId = reconInitRes.data?.job_id;
+      activeJobId = jobId;
+      correlation.jobId = jobId;
+
+      // -------------------------------------------------------------
+      // STAGE 6: POLL RECONSTRUCTION JOB STATUS UNTIL FINISHED
+      // -------------------------------------------------------------
+      let finalJobData = reconInitRes.data;
+
+      if (jobId && reconInitRes.data?.status !== "COMPLETED") {
+        const pollEndpoint = `${API_BASE_URL}/api/reconstruction/status/${jobId}`;
+        currentEndpoint = pollEndpoint;
+        let jobFinished = false;
+        let pollAttempts = 0;
+        let consecutiveErrors = 0;
+
+        while (!jobFinished && pollAttempts < 120) {
+          pollAttempts++;
+          await new Promise((r) => setTimeout(r, 1500));
+
+          try {
+            logPipeline("RECONSTRUCTION_RESPONSE", "GET", pollEndpoint, correlation);
+            const statusRes = await API.get(`/api/reconstruction/status/${jobId}`, {
+              timeout: 10000,
+            });
+            consecutiveErrors = 0;
+            const jobData = statusRes.data;
+            finalJobData = jobData;
+
+            const jobStage = jobData.status || jobData.stage;
+            if (jobStage === "POINT_CLOUD") {
+              setUiState("POINT_CLOUD");
+              onProgress?.({
+                stage: "Densifying multi-view point cloud...",
+                percentage: 86,
+                totalBytes: totalPayloadBytes,
+                totalMB: totalPayloadMB,
+                pipelineStage: "POINT_CLOUD",
+                uiState: "POINT_CLOUD",
+              });
+            } else if (jobStage === "MODEL_GENERATION") {
+              setUiState("MODEL_GENERATION");
+              onProgress?.({
+                stage: "Generating 3D GLB mesh & terrain volume...",
+                percentage: 92,
+                totalBytes: totalPayloadBytes,
+                totalMB: totalPayloadMB,
+                pipelineStage: "MODEL_GENERATION",
+                uiState: "MODEL_GENERATION",
+              });
+            } else if (jobStage === "COMPLETED") {
+              jobFinished = true;
+              break;
+            } else if (jobStage === "FAILED") {
+              throw new Error(jobData.error || jobData.message || "3D Reconstruction job failed on backend.");
+            } else {
+              onProgress?.({
+                stage: "SfM Photogrammetry & feature triangulation in progress...",
+                percentage: 82,
+                totalBytes: totalPayloadBytes,
+                totalMB: totalPayloadMB,
+                pipelineStage: "RECONSTRUCTION",
+                uiState: "RECONSTRUCTION",
+              });
+            }
+          } catch (pollErr: any) {
+            consecutiveErrors++;
+            console.warn(`Status polling notice (attempt ${pollAttempts}, errs ${consecutiveErrors}):`, pollErr);
+            if (consecutiveErrors >= 5) {
+              throw pollErr;
+            }
+          }
+        }
+      }
+
+      const projectId = finalJobData?.project_id;
+      activeProjectId = projectId;
+      correlation.projectId = projectId;
+
       if (!projectId) {
         throw new Error("Reconstruction finished without returning a valid project_id.");
       }
@@ -370,25 +463,25 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       // -------------------------------------------------------------
       currentStage = "POINT_CLOUD";
       logPipelineSuccess(currentStage, "PASS", currentEndpoint, {
-        vertices: reconRes.data?.statistics?.vertices,
-        engine: reconRes.data?.statistics?.engine_used,
-      });
+        vertices: finalJobData?.statistics?.vertices,
+        engine: finalJobData?.statistics?.engine_used,
+      }, correlation);
 
       currentStage = "MODEL_GENERATION";
       logPipelineSuccess(currentStage, "PASS", currentEndpoint, {
-        model_url: reconRes.data?.model_url,
-      });
+        model_url: finalJobData?.model_url,
+      }, correlation);
 
       currentStage = "PROJECT_CREATION";
       survey.backendProjectId = projectId;
       survey.reconstructionStatus = "available";
       survey.modelUrl = `/api/projects/${projectId}/model`;
-      survey.processingTime = reconRes.data?.processing_time || 2.5;
+      survey.processingTime = finalJobData?.processing_time || 2.5;
 
       logPipelineSuccess(currentStage, 200, currentEndpoint, {
         project_id: projectId,
         model_url: survey.modelUrl,
-      });
+      }, correlation);
 
       setUiState("FINALIZING");
       onProgress?.({
@@ -407,7 +500,7 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       logPipelineSuccess("FINAL_COMPLETION", 200, "all_stages", {
         survey_id: survey.id,
         backend_project_id: projectId,
-      });
+      }, correlation);
 
       return survey;
     } catch (err: any) {
@@ -416,7 +509,12 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
         currentStage,
         err,
         currentEndpoint,
-        activeUploadId
+        {
+          requestId,
+          uploadId: activeUploadId,
+          projectId: activeProjectId,
+          jobId: activeJobId,
+        }
       );
       setPipelineError(structuredError);
       throw new Error(structuredError.errorMessage);
@@ -469,6 +567,7 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
         isUploading,
         uiState,
         pipelineError,
+        lastUploadId,
         clearError,
         setActiveSurveyId,
         createSurvey,

@@ -28,7 +28,14 @@ export default function Upload() {
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   const navigate = useNavigate();
-  const { createSurvey, isUploading, uiState, pipelineError, clearError } = useDroneSurvey();
+  const {
+    createSurvey,
+    isUploading,
+    uiState,
+    pipelineError,
+    lastUploadId,
+    clearError,
+  } = useDroneSurvey();
 
   useEffect(() => {
     let mounted = true;
@@ -172,16 +179,30 @@ export default function Upload() {
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                clearError();
-                handleProcessSurvey();
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer transition-all shadow-xs"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Retry Pipeline
-            </button>
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
+              {lastUploadId && (
+                <button
+                  onClick={() => {
+                    clearError();
+                    createSurvey(files, surveyName || undefined, (d) => setProgressDetail(d), lastUploadId);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer transition-all shadow-xs"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Retry Reconstruction
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  clearError();
+                  handleProcessSurvey();
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer transition-all shadow-xs"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Retry Full Pipeline
+              </button>
+            </div>
           </div>
 
           {/* Technical Diagnostics Metadata Grid */}
