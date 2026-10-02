@@ -1,6 +1,6 @@
 /**
  * DroneVision Ingestion & Reconstruction Pipeline Service
- * Provides structured diagnostics, real-time stage tracking, and explicit technical error classification.
+ * Provides structured diagnostics, real-time stage tracking, request correlation, and explicit technical error classification.
  */
 
 export type PipelineStage =
@@ -8,6 +8,7 @@ export type PipelineStage =
   | "IMAGE_VALIDATION"
   | "IMAGE_UPLOAD"
   | "UPLOAD_RESPONSE"
+  | "RECONSTRUCTION"
   | "RECONSTRUCTION_START"
   | "RECONSTRUCTION_RESPONSE"
   | "EXIF_EXTRACTION"
@@ -28,6 +29,7 @@ export type UIState =
   | "VALIDATING"
   | "UPLOADING"
   | "UPLOAD_COMPLETE"
+  | "QUEUED"
   | "RECONSTRUCTION"
   | "GNSS_EXTRACTION"
   | "FLIGHT_PATH"
@@ -36,6 +38,13 @@ export type UIState =
   | "FINALIZING"
   | "COMPLETED"
   | "FAILED";
+
+export interface PipelineCorrelation {
+  requestId?: string;
+  uploadId?: string;
+  projectId?: string;
+  jobId?: string;
+}
 
 export interface PipelineErrorInfo {
   stage: PipelineStage;
@@ -46,15 +55,28 @@ export interface PipelineErrorInfo {
   technicalDetail?: string;
   responseBody?: string;
   requestId?: string;
+  uploadId?: string;
+  projectId?: string;
+  jobId?: string;
   timestamp: string;
 }
 
 /**
- * Log pipeline request initiation
+ * Log pipeline request initiation with full request correlation
  */
-export function logPipeline(stage: PipelineStage, method: string, url: string): void {
+export function logPipeline(
+  stage: PipelineStage,
+  method: string,
+  url: string,
+  correlation?: PipelineCorrelation
+): void {
+  const reqStr = correlation?.requestId ? `request_id=${correlation.requestId}\n` : "";
+  const upStr = correlation?.uploadId ? `upload_id=${correlation.uploadId}\n` : "";
+  const projStr = correlation?.projectId ? `project_id=${correlation.projectId}\n` : "";
+  const jobStr = correlation?.jobId ? `job_id=${correlation.jobId}\n` : "";
+
   console.log(
-    `[PIPELINE]\nstage=${stage}\nmethod=${method}\nurl=${url}`
+    `[PIPELINE]\n${reqStr}${upStr}${projStr}${jobStr}stage=${stage}\nmethod=${method}\nurl=${url}`
   );
 }
 
@@ -65,14 +87,21 @@ export function logPipelineSuccess(
   stage: PipelineStage,
   status: number | string,
   url: string,
-  response: any
+  response: any,
+  correlation?: PipelineCorrelation
 ): void {
+  const reqStr = correlation?.requestId ? `request_id=${correlation.requestId}\n` : "";
+  const upStr = correlation?.uploadId ? `upload_id=${correlation.uploadId}\n` : "";
+  const projStr = correlation?.projectId ? `project_id=${correlation.projectId}\n` : "";
+  const jobStr = correlation?.jobId ? `job_id=${correlation.jobId}\n` : "";
+
   const respStr =
     typeof response === "object"
       ? JSON.stringify(response)
       : String(response ?? "");
+
   console.log(
-    `[PIPELINE_SUCCESS]\nstage=${stage}\nstatus=${status}\nurl=${url}\nresponse=${respStr}`
+    `[PIPELINE_SUCCESS]\n${reqStr}${upStr}${projStr}${jobStr}stage=${stage}\nstatus=${status}\nurl=${url}\nresponse=${respStr}`
   );
 }
 
@@ -85,7 +114,8 @@ export function logPipelineFailure(
   err: any,
   status?: number | string,
   statusText?: string,
-  responseBody?: string
+  responseBody?: string,
+  correlation?: PipelineCorrelation
 ): void {
   const finalStatus = status ?? err?.response?.status ?? "UNKNOWN";
   const finalStatusText = statusText ?? err?.response?.statusText ?? "";
@@ -99,26 +129,31 @@ export function logPipelineFailure(
   const errorName = err?.name || "PipelineError";
   const errorMessage = err?.message || String(err || "Unknown error");
 
+  const reqStr = correlation?.requestId ? `request_id=${correlation.requestId}\n` : "";
+  const upStr = correlation?.uploadId ? `upload_id=${correlation.uploadId}\n` : "";
+  const projStr = correlation?.projectId ? `project_id=${correlation.projectId}\n` : "";
+  const jobStr = correlation?.jobId ? `job_id=${correlation.jobId}\n` : "";
+
   if (err?.code === "ERR_NETWORK" && !err?.response) {
     console.error(
-      `[PIPELINE_NETWORK_FAILURE]\nstage=${stage}\nurl=${url}\nerrorName=${errorName}\nerrorMessage=${errorMessage}`
+      `[PIPELINE_NETWORK_FAILURE]\n${reqStr}${upStr}${projStr}${jobStr}stage=${stage}\nurl=${url}\nerrorName=${errorName}\nerrorMessage=${errorMessage}`
     );
   } else {
     console.error(
-      `[PIPELINE_FAILURE]\nstage=${stage}\nstatus=${finalStatus}\nurl=${url}\nstatusText=${finalStatusText}\nresponseBody=${finalRespBody}\nerrorName=${errorName}\nerrorMessage=${errorMessage}`
+      `[PIPELINE_FAILURE]\n${reqStr}${upStr}${projStr}${jobStr}stage=${stage}\nstatus=${finalStatus}\nurl=${url}\nstatusText=${finalStatusText}\nresponseBody=${finalRespBody}\nerrorName=${errorName}\nerrorMessage=${errorMessage}`
     );
   }
 }
 
 /**
  * Parses any pipeline exception into a structured technical error.
- * NEVER masks HTTP 500, 422, 404, 401 as a generic network error.
+ * Handles server restarts, timeouts, disconnects, and HTTP status codes accurately.
  */
 export function parsePipelineError(
   stage: PipelineStage,
   err: any,
   endpoint: string,
-  requestId?: string
+  correlation?: PipelineCorrelation
 ): PipelineErrorInfo {
   const now = new Date().toISOString();
   const errorName = err?.name || (err?.response ? "AxiosHTTPError" : "Error");
@@ -175,20 +210,21 @@ export function parsePipelineError(
       case 502:
       case 503:
       case 504:
-        userFacingMessage = `Backend service unavailable — HTTP ${httpStatus}: Processing server is restarting or under maintenance.`;
+        userFacingMessage = `Processing server connection was interrupted during reconstruction (HTTP ${httpStatus}). Render server restarted or is waking up.`;
         break;
       default:
         userFacingMessage = `Backend returned HTTP ${httpStatus}: ${backendDetail || err.message || "Unknown HTTP error"}`;
         break;
     }
   } else if (err?.code === "ECONNABORTED") {
-    userFacingMessage = `Connection timed out (ECONNABORTED): The operation took longer than the allocated timeout limit.`;
+    userFacingMessage = `Connection timed out (ECONNABORTED): The processing operation exceeded the connection timeout limit.`;
   } else if (err?.code === "ERR_NETWORK" || err?.message === "Network Error") {
-    // Check if offline
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (stage === "RECONSTRUCTION_START" || stage === "RECONSTRUCTION_RESPONSE" || stage === "POINT_CLOUD") {
+      userFacingMessage = `Processing server connection was interrupted during reconstruction.`;
+    } else if (typeof navigator !== "undefined" && !navigator.onLine) {
       userFacingMessage = `Client Offline: Your device lost internet connectivity during ${stage}.`;
     } else {
-      userFacingMessage = `Network Error on ${stage}: Failed to complete HTTP request to ${endpoint}. (Check backend reachability).`;
+      userFacingMessage = `Network connection dropped during ${stage} to ${endpoint}. (Server restarted or disconnected).`;
     }
   } else if (err instanceof Error) {
     userFacingMessage = `Frontend processing error after backend stage ${stage}: ${err.message}`;
@@ -203,7 +239,8 @@ export function parsePipelineError(
     err,
     httpStatus,
     err?.response?.statusText,
-    responseBodyStr
+    responseBodyStr,
+    correlation
   );
 
   return {
@@ -214,7 +251,10 @@ export function parsePipelineError(
     errorMessage: userFacingMessage,
     technicalDetail: backendDetail || err?.message,
     responseBody: responseBodyStr,
-    requestId: requestId || (responseData?.upload_id || responseData?.project_id || undefined),
+    requestId: correlation?.requestId,
+    uploadId: correlation?.uploadId || responseData?.upload_id,
+    projectId: correlation?.projectId || responseData?.project_id,
+    jobId: correlation?.jobId || responseData?.job_id,
     timestamp: now,
   };
 }
