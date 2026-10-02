@@ -1,7 +1,12 @@
 import AppRoutes from "./routes/AppRoutes";
+import { DroneSurveyProvider } from "./context/DroneSurveyContext";
 
 function App() {
-  return <AppRoutes />;
+  return (
+    <DroneSurveyProvider>
+      <AppRoutes />
+    </DroneSurveyProvider>
+  );
 }
 
 export default App;
