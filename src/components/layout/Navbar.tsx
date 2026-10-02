@@ -24,7 +24,8 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
-    window.location.href = "/login";
+    setOpen(false);
+    navigate("/login");
   };
 
   // Determine current context badge
