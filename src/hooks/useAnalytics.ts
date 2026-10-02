@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import API from "../api";
 
 export interface Analytics {
   file: string;
@@ -21,20 +22,14 @@ export default function useAnalytics() {
   const [data, setData] = useState<Analytics | null>(null);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/analytics")
+    API.get("/api/analytics")
       .then((res) => {
-        if (!res.ok) {
-          throw new Error("Failed to fetch analytics");
-        }
-
-        return res.json();
+        setData(res.data);
       })
-      .then((json) => {
-        console.log("Analytics:", json);
-        setData(json);
-      })
-      .catch(console.error);
+      .catch((err) => {
+        console.warn("Analytics endpoint unavailable or requires project scope:", err);
+      });
   }, []);
 
   return data;
-}
+}

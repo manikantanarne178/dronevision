@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import API from "../../api";
 import {
   Box,
   Calendar,
@@ -12,8 +12,6 @@ import {
 } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import { formatDate } from "../../utils/date";
-
-const API = "http://127.0.0.1:8000";
 
 interface Project {
   project_id: string;
@@ -43,14 +41,7 @@ export default function ProjectSelector({
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    axios
-      .get(`${API}/api/projects/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    API.get("/api/projects/")
       .then((res) => {
         if (res.data.success) {
           setProjects(res.data.projects);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import API from "../api";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
 export default function Processing() {
@@ -12,32 +12,24 @@ export default function Processing() {
   useEffect(() => {
     async function generate() {
       try {
-        setStatus("Generating Sparse Point Cloud...");
+        setStatus("Generating Photogrammetry 3D Reconstruction...");
 
-        await axios.post(
-          "http://127.0.0.1:8000/api/reconstruction/generate"
-        );
+        const response = await API.post("/api/reconstruction/generate");
+        const projId = response.data?.project_id;
 
-        setStatus("Generating Dense Point Cloud...");
-
-        await new Promise((r) => setTimeout(r, 1000));
-
-        setStatus("Building Mesh...");
-
-        await new Promise((r) => setTimeout(r, 1000));
-
-        setStatus("Exporting GLB...");
-
-        await new Promise((r) => setTimeout(r, 1000));
-
+        setStatus("Reconstruction Finalized...");
         setCompleted(true);
 
         setTimeout(() => {
-          navigate("/viewer");
-        }, 1500);
+          if (projId) {
+            navigate(`/viewer/${projId}`);
+          } else {
+            navigate("/viewer");
+          }
+        }, 1200);
       } catch (err) {
-        console.log(err);
-        alert("Generation Failed");
+        console.error("Reconstruction failed:", err);
+        alert("3D Reconstruction Generation Failed. Please verify uploaded survey images.");
       }
     }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../../api";
 import { useParams } from "react-router-dom";
 import { Image as ImageIcon, HardDrive, Ruler, Map, Box } from "lucide-react";
 
@@ -29,10 +29,10 @@ export default function AnalyticsPanel() {
     if (!projectId) return;
 
     Promise.all([
-      axios.get(`http://127.0.0.1:8000/api/projects/${projectId}/model`, {
+      API.get(`/api/projects/${projectId}/model`, {
         responseType: "blob",
       }),
-      axios.get(`http://127.0.0.1:8000/api/analytics/${projectId}`),
+      API.get(`/api/analytics/${projectId}`),
     ])
       .then(([modelRes, analyticsRes]) => {
         const sizeMB = (modelRes.data.size / 1024 / 1024).toFixed(2);

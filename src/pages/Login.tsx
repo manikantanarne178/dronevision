@@ -1,8 +1,6 @@
 import { useState } from "react";
-import axios from "axios";
+import API from "../api";
 import { Eye, EyeOff, ShieldCheck, Lock, Mail, User as UserIcon, Building2, AlertCircle } from "lucide-react";
-
-const API = "http://127.0.0.1:8000";
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,7 +18,7 @@ export default function Login() {
     try {
       setLoading(true);
 
-      await axios.post(`${API}/api/auth/register`, {
+      await API.post("/api/auth/register", {
         username,
         email,
         password,
@@ -30,9 +28,12 @@ export default function Login() {
       setIsLogin(true);
       setPassword("");
     } catch (err: any) {
-      setErrorMessage(
-        err.response?.data?.detail || "Registration failed. Please check your credentials."
-      );
+      const msg =
+        err.response?.data?.detail ||
+        (err.code === "ECONNABORTED"
+          ? "Server connection timed out. Live Render server may be waking up, please retry."
+          : "Registration failed. Please check your credentials.");
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -43,7 +44,7 @@ export default function Login() {
     try {
       setLoading(true);
 
-      const res = await axios.post(`${API}/api/auth/login`, {
+      const res = await API.post("/api/auth/login", {
         email,
         password,
       });
@@ -57,22 +58,24 @@ export default function Login() {
 
       localStorage.setItem("token", res.data.access_token);
 
-      const me = await axios.get(`${API}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${res.data.access_token}`,
-        },
-      });
-
-      if (me.data.username) {
-        localStorage.setItem("username", me.data.username);
+      try {
+        const me = await API.get("/api/auth/me");
+        if (me.data?.username) {
+          localStorage.setItem("username", me.data.username);
+        }
+      } catch (meErr) {
+        console.warn("Could not fetch user profile:", meErr);
       }
 
       window.location.href = "/";
     } catch (err: any) {
       console.error("LOGIN ERROR:", err);
-      setErrorMessage(
-        err.response?.data?.detail || "Invalid credentials. Please verify your email and password."
-      );
+      const msg =
+        err.response?.data?.detail ||
+        (err.code === "ECONNABORTED"
+          ? "Server connection timed out. Live Render server may be waking up, please retry."
+          : "Invalid credentials. Please verify your email and password.");
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }

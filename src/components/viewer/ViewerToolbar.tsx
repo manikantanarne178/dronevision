@@ -10,6 +10,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useViewer, type Tool } from "../../context/ViewerContext";
+import { API_BASE_URL } from "../../api";
 
 interface ToolButton {
   icon: LucideIcon;
@@ -52,7 +53,7 @@ export default function ViewerToolbar() {
   const { projectId } = useParams();
 
   const modelUrl = projectId
-    ? `http://127.0.0.1:8000/api/projects/${projectId}/model`
+    ? `${API_BASE_URL}/api/projects/${projectId}/model`
     : "";
 
   return (

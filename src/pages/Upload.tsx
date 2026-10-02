@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import API from "../api";
 import { Sparkles, Trash2, Plus, ArrowRight, AlertCircle } from "lucide-react";
 
 import ImageUploader from "../components/upload/ImageUploader";
@@ -24,41 +24,20 @@ export default function Upload() {
     setError(null);
     try {
       setUploading(true);
-      const token = localStorage.getItem("token");
-
-      console.log("TOKEN FROM LOCAL STORAGE:", token);
-      console.log("AUTH HEADER:", `Bearer ${token}`);
 
       const formData = new FormData();
       files.forEach((file) => {
         formData.append("files", file);
       });
 
-      console.log("Uploading images...");
-      await axios.post(
-        "http://127.0.0.1:8000/api/upload/images",
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      console.log("Uploading images to live backend...");
+      await API.post("/api/upload/images", formData);
 
       console.log("Generating 3D Model...");
-      const response = await axios.post(
-        "http://127.0.0.1:8000/api/reconstruction/generate",
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await API.post("/api/reconstruction/generate", {});
 
       console.log(response.data);
-      const projectId = response.data.project_id;
+      const projectId = response.data?.project_id;
 
       if (!projectId) {
         alert("Project ID not returned by backend.");
@@ -67,8 +46,12 @@ export default function Upload() {
 
       navigate(`/viewer/${projectId}`);
     } catch (err: any) {
-      console.error(err);
-      const msg = err.response?.data?.detail || "3D reconstruction failed. Please check your uploaded images.";
+      console.error("3D Model Generation Error:", err);
+      const msg =
+        err.response?.data?.detail ||
+        (err.code === "ECONNABORTED"
+          ? "Upload connection timed out. Live Render server may be waking up, please retry."
+          : "3D reconstruction failed. Please check your uploaded images and network connection.");
       setError(msg);
     } finally {
       setUploading(false);
