@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import API from "../api";
+import API, { ensureAuthToken } from "../api";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
 export default function Processing() {
@@ -12,9 +12,10 @@ export default function Processing() {
   useEffect(() => {
     async function generate() {
       try {
+        await ensureAuthToken();
         setStatus("Generating Photogrammetry 3D Reconstruction...");
 
-        const response = await API.post("/api/reconstruction/generate");
+        const response = await API.post("/api/reconstruction/generate", {}, { timeout: 300000 });
         const projId = response.data?.project_id;
 
         setStatus("Reconstruction Finalized...");

@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import API, { pingBackendHealth } from "../api";
+import API, { pingBackendHealth, ensureAuthToken } from "../api";
 import {
   type DroneSurvey,
   buildSurveyFromFiles,
@@ -132,6 +132,9 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
     const totalPayloadMB = (totalPayloadBytes / (1024 * 1024)).toFixed(1);
 
     try {
+      // Step 0: Guarantee valid session authorization token exists
+      await ensureAuthToken();
+
       // Step 1: Client-side EXIF & Telemetry Extraction
       onProgress?.({
         stage: `Extracting EXIF & GNSS telemetry from ${files.length} images...`,
@@ -247,14 +250,23 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
 
       let errorMessage = "Upload failed. Please check network connection.";
       if (err.code === "ECONNABORTED") {
-        errorMessage = "Upload timed out. The network speed was insufficient for the dataset size. Please retry.";
+        errorMessage = "Upload timed out (ECONNABORTED). The network speed was insufficient for the dataset size. Please retry.";
+      } else if (err.response?.status === 401) {
+        errorMessage = "Authentication error (HTTP 401): Session expired or invalid token.";
+      } else if (err.response?.status === 408) {
+        errorMessage = "Server timeout (HTTP 408): The processing server closed the connection.";
       } else if (err.response?.status === 413) {
-        errorMessage = "Payload too large (HTTP 413). The uploaded dataset exceeded the server's single-request limit.";
+        errorMessage = "Payload too large (HTTP 413): The uploaded dataset exceeded the server's single-request limit.";
       } else if (err.response?.status === 422) {
         const detail = err.response.data?.detail;
         errorMessage = `Validation error (HTTP 422): ${typeof detail === "string" ? detail : JSON.stringify(detail)}`;
+      } else if (err.response?.status === 500) {
+        const detail = err.response.data?.detail || "Internal Server Error in 3D Reconstruction pipeline";
+        errorMessage = `3D Reconstruction Error (HTTP 500): ${typeof detail === "string" ? detail : JSON.stringify(detail)}`;
       } else if (err.response?.status === 502 || err.response?.status === 503 || err.response?.status === 504) {
         errorMessage = `Server gateway notice (HTTP ${err.response.status}): Render backend is temporarily waking up or restarting.`;
+      } else if (err.code === "ERR_NETWORK" || err.message === "Network Error") {
+        errorMessage = "Network Error: Failed to communicate with https://dronbackend.onrender.com (CORS or server unreachable).";
       } else if (err.response?.data?.detail) {
         const detail = err.response.data.detail;
         errorMessage = typeof detail === "string" ? detail : JSON.stringify(detail);
