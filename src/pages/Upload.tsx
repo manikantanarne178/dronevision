@@ -5,10 +5,12 @@ import {
   Trash2,
   Plus,
   ArrowRight,
-  AlertCircle,
+  AlertOctagon,
   Camera,
   Activity,
   Zap,
+  RotateCcw,
+  Server,
 } from "lucide-react";
 
 import ImageUploader from "../components/upload/ImageUploader";
@@ -23,11 +25,10 @@ export default function Upload() {
   const [progressDetail, setProgressDetail] = useState<UploadProgressDetail | null>(
     null
   );
-  const [error, setError] = useState<string | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   const navigate = useNavigate();
-  const { createSurvey, isUploading } = useDroneSurvey();
+  const { createSurvey, isUploading, uiState, pipelineError, clearError } = useDroneSurvey();
 
   useEffect(() => {
     let mounted = true;
@@ -47,7 +48,7 @@ export default function Upload() {
       return;
     }
 
-    setError(null);
+    clearError();
 
     try {
       const survey = await createSurvey(
@@ -58,23 +59,51 @@ export default function Upload() {
         }
       );
 
-      console.log("Survey created successfully:", survey);
+      console.log("[PIPELINE_COMPLETE] Survey created successfully:", survey);
 
-      // Navigate to flight path or viewer
+      // Navigate to 3D model viewer or flight path
       if (survey.backendProjectId && survey.reconstructionStatus === "available") {
         navigate(`/viewer/${survey.backendProjectId}`);
       } else {
         navigate(`/flight-path`);
       }
     } catch (err: any) {
-      console.error("Survey processing error:", err);
-      const msg =
-        err.response?.data?.detail ||
-        err.message ||
-        "Processing failed. Please check network connection and file formats.";
-      setError(typeof msg === "string" ? msg : JSON.stringify(msg));
+      console.error("[PIPELINE_ERROR_CAUGHT] Survey processing halted:", err);
+      // Handled and stored in context as pipelineError
     }
   };
+
+  const getUIStateBadge = () => {
+    switch (uiState) {
+      case "VALIDATING":
+        return { label: "VALIDATING DATASET", color: "bg-amber-50 text-amber-700 border-amber-200" };
+      case "UPLOADING":
+        return { label: "UPLOADING IMAGES", color: "bg-cyan-50 text-cyan-700 border-cyan-200" };
+      case "UPLOAD_COMPLETE":
+        return { label: "UPLOAD COMPLETE", color: "bg-indigo-50 text-indigo-700 border-indigo-200" };
+      case "RECONSTRUCTION":
+        return { label: "3D RECONSTRUCTION", color: "bg-purple-50 text-purple-700 border-purple-200" };
+      case "GNSS_EXTRACTION":
+        return { label: "GNSS TELEMETRY", color: "bg-sky-50 text-sky-700 border-sky-200" };
+      case "FLIGHT_PATH":
+        return { label: "FLIGHT PATH CALCULATION", color: "bg-blue-50 text-blue-700 border-blue-200" };
+      case "POINT_CLOUD":
+        return { label: "POINT CLOUD GENERATION", color: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+      case "MODEL_GENERATION":
+        return { label: "3D GLB GENERATION", color: "bg-teal-50 text-teal-700 border-teal-200" };
+      case "FINALIZING":
+        return { label: "FINALIZING MISSION", color: "bg-indigo-50 text-indigo-700 border-indigo-200" };
+      case "COMPLETED":
+        return { label: "COMPLETED", color: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+      case "FAILED":
+        return { label: "FAILED", color: "bg-rose-50 text-rose-700 border-rose-200" };
+      case "IDLE":
+      default:
+        return { label: "READY FOR INGESTION", color: "bg-slate-50 text-slate-700 border-slate-200" };
+    }
+  };
+
+  const stateBadge = getUIStateBadge();
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -97,45 +126,91 @@ export default function Upload() {
           </p>
         </div>
 
-        {/* Live Server Health Badge */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* State Machine Status Badges */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold font-mono uppercase tracking-wider ${stateBadge.color}`}>
+            <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
+            State: {stateBadge.label}
+          </span>
+
           {backendOnline === true ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Processing Server: Online
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
+              <Server className="w-3.5 h-3.5 text-emerald-600" />
+              Backend: Online
             </span>
           ) : backendOnline === false ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
               <Activity className="w-3.5 h-3.5 text-amber-600 animate-spin" />
-              Waking Processing Server...
+              Backend: Cold Start
             </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-200 text-xs font-medium">
-              <Activity className="w-3.5 h-3.5 animate-spin" />
-              Checking Server...
-            </span>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {error && (
-        <div className="flex items-start justify-between gap-3 p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs sm:text-sm">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold">Upload Notice</p>
-              <p className="text-rose-600">{error}</p>
+      {/* Explicit Technical Diagnostic Error Box */}
+      {pipelineError && (
+        <div className="bg-rose-50/90 border border-rose-300 rounded-2xl p-5 shadow-xs text-rose-900 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-rose-100 text-rose-700 border border-rose-200 mt-0.5">
+                <AlertOctagon className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-rose-200 text-rose-900 font-mono text-[11px] font-bold uppercase tracking-wider">
+                    Pipeline Stage: {pipelineError.stage}
+                  </span>
+                  {pipelineError.httpStatus && (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-200 text-rose-900 font-mono text-[11px] font-bold">
+                      HTTP {pipelineError.httpStatus}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-sm font-bold text-rose-950">
+                  {pipelineError.errorMessage}
+                </h3>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                clearError();
+                handleProcessSurvey();
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer transition-all shadow-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Retry Pipeline
+            </button>
+          </div>
+
+          {/* Technical Diagnostics Metadata Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white/80 p-3.5 rounded-xl border border-rose-200 text-[11px] font-mono">
+            <div>
+              <span className="text-rose-500 font-semibold block uppercase tracking-wider text-[10px]">
+                Target Endpoint
+              </span>
+              <span className="text-slate-800 break-all font-medium">
+                {pipelineError.endpoint}
+              </span>
+            </div>
+            <div>
+              <span className="text-rose-500 font-semibold block uppercase tracking-wider text-[10px]">
+                Error Identifier
+              </span>
+              <span className="text-slate-800 font-medium">
+                {pipelineError.errorName}
+              </span>
+            </div>
+            <div>
+              <span className="text-rose-500 font-semibold block uppercase tracking-wider text-[10px]">
+                Request ID / Upload ID
+              </span>
+              <span className="text-slate-800 font-medium">
+                {pipelineError.requestId || "N/A"}
+              </span>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setError(null);
-              handleProcessSurvey();
-            }}
-            className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg font-bold text-xs shrink-0 cursor-pointer transition-colors"
-          >
-            Retry
-          </button>
         </div>
       )}
 
@@ -149,7 +224,7 @@ export default function Upload() {
           value={surveyName}
           disabled={isUploading}
           onChange={(e) => {
-            setError(null);
+            clearError();
             setSurveyName(e.target.value);
           }}
           placeholder="e.g., Construction Site Survey Phase 1 - Block A"
@@ -161,7 +236,7 @@ export default function Upload() {
       {files.length === 0 && (
         <ImageUploader
           onFilesSelected={(newFiles) => {
-            setError(null);
+            clearError();
             setFiles((prev) => [...prev, ...newFiles]);
           }}
         />
@@ -197,7 +272,10 @@ export default function Upload() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFiles([])}
+                    onClick={() => {
+                      clearError();
+                      setFiles([]);
+                    }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-lg transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -209,9 +287,12 @@ export default function Upload() {
 
             <ImageGrid
               files={files}
-              removeFile={(index) =>
-                !isUploading && setFiles(files.filter((_, i) => i !== index))
-              }
+              removeFile={(index) => {
+                if (!isUploading) {
+                  clearError();
+                  setFiles(files.filter((_, i) => i !== index));
+                }
+              }}
             />
           </div>
 
@@ -256,7 +337,9 @@ export default function Upload() {
               </div>
 
               <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                <span>Phase: Multipart Binary Transfer</span>
+                <span className="font-mono">
+                  Phase: {progressDetail.pipelineStage || "BINARY TRANSFER"}
+                </span>
                 <span className="flex items-center gap-1 text-slate-500">
                   <Zap size={12} className="text-amber-500" /> High Throughput Pipe Active
                 </span>
