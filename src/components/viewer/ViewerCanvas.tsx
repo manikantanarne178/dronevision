@@ -16,14 +16,14 @@ import AnalyticsPanel from "./AnalyticsPanel";
 import ModelErrorBoundary from "./ModelErrorBoundary";
 import Model from "./Model";
 import API from "../../api";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 function Loader() {
   return (
     <Html center>
       <div className="flex items-center gap-2 rounded-xl bg-white/95 backdrop-blur px-4 py-2.5 text-slate-800 text-xs font-semibold shadow-lg border border-slate-200">
         <Loader2 className="w-4 h-4 text-cyan-600 animate-spin" />
-        <span>Synthesizing 3D Geometry...</span>
+        <span>Loading 3D Spatial Geometry...</span>
       </div>
     </Html>
   );
@@ -33,25 +33,43 @@ export default function ViewerCanvas() {
   const { tool } = useViewer();
   const { projectId } = useParams();
   const [modelUrl, setModelUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId) {
+      return;
+    }
 
-    let objectUrl: string;
+    let objectUrl: string | null = null;
 
     async function loadModel() {
       try {
-        const response = await API.get(
-          `/api/reconstruction/model/${projectId}`,
-          {
-            responseType: "blob",
-          }
-        );
+        setError(null);
 
-        objectUrl = URL.createObjectURL(response.data);
-        setModelUrl(objectUrl);
-      } catch (err) {
-        console.error("Failed to load model:", err);
+        let response;
+        try {
+          response = await API.get(`/api/projects/${projectId}/model`, {
+            responseType: "blob",
+          });
+        } catch {
+          // Fallback to alternate reconstruction model route
+          response = await API.get(`/api/reconstruction/model/${projectId}`, {
+            responseType: "blob",
+          });
+        }
+
+        if (response.data && response.data.size > 0) {
+          objectUrl = URL.createObjectURL(response.data);
+          setModelUrl(objectUrl);
+        } else {
+          setError("3D reconstruction model file is empty or still generating.");
+        }
+      } catch (err: any) {
+        console.error("Failed to load 3D model:", err);
+        setError(
+          err.response?.data?.detail ||
+            "3D reconstruction model not available for this project yet."
+        );
       }
     }
 
@@ -68,6 +86,16 @@ export default function ViewerCanvas() {
     return (
       <div className="flex h-full items-center justify-center bg-slate-900 text-slate-400 text-sm rounded-xl">
         No project dataset selected.
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center bg-slate-900 text-slate-400 p-6 text-center rounded-xl space-y-2">
+        <AlertCircle className="w-8 h-8 text-amber-500" />
+        <p className="text-sm font-semibold text-slate-200">3D Mesh Viewport Notice</p>
+        <p className="text-xs text-slate-400 max-w-md">{error}</p>
       </div>
     );
   }
