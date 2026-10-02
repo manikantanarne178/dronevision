@@ -62,16 +62,16 @@ export default function ProjectSummary({ files }: Props) {
 
         <SummaryCard
           icon={<Cpu className="w-4 h-4 text-cyan-600" />}
-          title="Compute Engine"
-          value="CUDA RTX"
-          subtext="GPU Accelerated"
+          title="SfM Engine"
+          value="Photogrammetry"
+          subtext="Direct SfM + GLB"
         />
 
         <SummaryCard
           icon={<Layers className="w-4 h-4 text-emerald-600" />}
           title="Output Target"
-          value="Point Cloud"
-          subtext="PLY / OBJ + DSM"
+          value="3D GLB Model"
+          subtext="Point Cloud & Mesh"
         />
 
         <SummaryCard

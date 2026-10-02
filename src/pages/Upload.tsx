@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sparkles,
@@ -15,6 +15,7 @@ import ImageUploader from "../components/upload/ImageUploader";
 import ImageGrid from "../components/upload/ImageGrid";
 import ProjectSummary from "../components/upload/ProjectSummary";
 import { useDroneSurvey, type UploadProgressDetail } from "../context/DroneSurveyContext";
+import { pingBackendHealth } from "../api";
 
 export default function Upload() {
   const [files, setFiles] = useState<File[]>([]);
@@ -23,9 +24,22 @@ export default function Upload() {
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   const navigate = useNavigate();
   const { createSurvey, isUploading } = useDroneSurvey();
+
+  useEffect(() => {
+    let mounted = true;
+    pingBackendHealth().then((healthy) => {
+      if (mounted) {
+        setBackendOnline(healthy);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleProcessSurvey = async () => {
     if (files.length === 0) {
@@ -58,7 +72,7 @@ export default function Upload() {
         err.response?.data?.detail ||
         err.message ||
         "Processing failed. Please check network connection and file formats.";
-      setError(msg);
+      setError(typeof msg === "string" ? msg : JSON.stringify(msg));
     }
   };
 
@@ -82,15 +96,46 @@ export default function Upload() {
             Ingest high-resolution aerial datasets to extract GNSS telemetry, flight waypoints, and generate 3D point clouds.
           </p>
         </div>
+
+        {/* Live Server Health Badge */}
+        <div className="flex items-center gap-2 shrink-0">
+          {backendOnline === true ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Processing Server: Online
+            </span>
+          ) : backendOnline === false ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold">
+              <Activity className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+              Waking Processing Server...
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-200 text-xs font-medium">
+              <Activity className="w-3.5 h-3.5 animate-spin" />
+              Checking Server...
+            </span>
+          )}
+        </div>
       </div>
 
       {error && (
-        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs sm:text-sm">
-          <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold">Upload Diagnostic Alert</p>
-            <p className="text-rose-600">{error}</p>
+        <div className="flex items-start justify-between gap-3 p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs sm:text-sm">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold">Upload Notice</p>
+              <p className="text-rose-600">{error}</p>
+            </div>
           </div>
+          <button
+            onClick={() => {
+              setError(null);
+              handleProcessSurvey();
+            }}
+            className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg font-bold text-xs shrink-0 cursor-pointer transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -103,7 +148,10 @@ export default function Upload() {
           type="text"
           value={surveyName}
           disabled={isUploading}
-          onChange={(e) => setSurveyName(e.target.value)}
+          onChange={(e) => {
+            setError(null);
+            setSurveyName(e.target.value);
+          }}
           placeholder="e.g., Construction Site Survey Phase 1 - Block A"
           className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none transition-all disabled:bg-slate-100"
         />
@@ -112,9 +160,10 @@ export default function Upload() {
       {/* Uploader Box */}
       {files.length === 0 && (
         <ImageUploader
-          onFilesSelected={(newFiles) =>
-            setFiles((prev) => [...prev, ...newFiles])
-          }
+          onFilesSelected={(newFiles) => {
+            setError(null);
+            setFiles((prev) => [...prev, ...newFiles]);
+          }}
         />
       )}
 
