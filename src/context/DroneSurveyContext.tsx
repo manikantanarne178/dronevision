@@ -150,19 +150,20 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
         totalMB: totalPayloadMB,
       });
 
-      const isServerAwake = await pingBackendHealth();
-      if (!isServerAwake) {
+      const isServerAwake = await pingBackendHealth((attempt, max) => {
         onProgress?.({
-          stage: "Render server is waking up from cold-start, establishing stream...",
-          percentage: 18,
+          stage: `Connecting to processing server (attempt ${attempt}/${max})...`,
+          percentage: 12 + attempt * 2,
           totalBytes: totalPayloadBytes,
           totalMB: totalPayloadMB,
         });
-        // Short pause to allow Render instance to fully initialize
-        await new Promise((r) => setTimeout(r, 2000));
+      });
+
+      if (!isServerAwake) {
+        console.warn("Health check unconfirmed, proceeding with direct upload attempt.");
       }
 
-      // Step 3: Stream Multipart Payload with real-time byte tracking and 15-minute timeout
+      // Step 3: Stream Multipart Payload with real-time byte tracking and generous timeout
       onProgress?.({
         stage: `Streaming ${files.length} images (${totalPayloadMB} MB) to backend...`,
         percentage: 20,
@@ -177,11 +178,9 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const startTime = Date.now();
 
+      // Note: Do NOT manually set Content-Type header so browser appends proper multipart boundary
       const uploadRes = await API.post("/api/upload/images", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        timeout: 900000, // 15 minutes timeout for 247+ MB datasets
+        timeout: 900000, // 15 minutes timeout for large datasets
         onUploadProgress: (progressEvent) => {
           const total = progressEvent.total || totalPayloadBytes;
           const loaded = progressEvent.loaded;
@@ -250,9 +249,17 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
       if (err.code === "ECONNABORTED") {
         errorMessage = "Upload timed out. The network speed was insufficient for the dataset size. Please retry.";
       } else if (err.response?.status === 413) {
-        errorMessage = "Payload too large. Server request body limit exceeded.";
+        errorMessage = "Payload too large (HTTP 413). The uploaded dataset exceeded the server's single-request limit.";
+      } else if (err.response?.status === 422) {
+        const detail = err.response.data?.detail;
+        errorMessage = `Validation error (HTTP 422): ${typeof detail === "string" ? detail : JSON.stringify(detail)}`;
+      } else if (err.response?.status === 502 || err.response?.status === 503 || err.response?.status === 504) {
+        errorMessage = `Server gateway notice (HTTP ${err.response.status}): Render backend is temporarily waking up or restarting.`;
       } else if (err.response?.data?.detail) {
-        errorMessage = String(err.response.data.detail);
+        const detail = err.response.data.detail;
+        errorMessage = typeof detail === "string" ? detail : JSON.stringify(detail);
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
       throw new Error(errorMessage);
