@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import API from "../../api";
+import DroneApiService, { type DroneProjectBackend } from "../../services/droneApiService";
 import {
   Box,
   Calendar,
@@ -12,16 +12,6 @@ import {
 } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import { formatDate } from "../../utils/date";
-
-interface Project {
-  project_id: string;
-  generated_at: string;
-  images_uploaded: number;
-  processing_time: number;
-  width: number;
-  length: number;
-  height: number;
-}
 
 interface ProjectSelectorProps {
   title: string;
@@ -36,18 +26,14 @@ export default function ProjectSelector({
 }: ProjectSelectorProps) {
   const navigate = useNavigate();
 
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<DroneProjectBackend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    API.get("/api/projects/")
-      .then((res) => {
-        if (res.data.success) {
-          setProjects(res.data.projects);
-        } else {
-          setError(true);
-        }
+    DroneApiService.listDroneProjects()
+      .then((list) => {
+        setProjects(list);
       })
       .catch((err) => {
         console.error(err);
@@ -75,14 +61,14 @@ export default function ProjectSelector({
       {loading && (
         <div className="flex items-center gap-2 text-slate-500 text-sm">
           <Loader2 className="animate-spin text-cyan-600" size={18} />
-          <span>Loading projects...</span>
+          <span>Loading drone projects...</span>
         </div>
       )}
 
       {/* Error */}
       {!loading && error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-rose-700 text-sm font-medium">
-          Failed to load projects. Make sure the backend service is running.
+          Failed to load drone projects. Make sure the backend service is running.
         </div>
       )}
 
@@ -91,7 +77,7 @@ export default function ProjectSelector({
         <div className="flex flex-col items-center gap-2 text-slate-400 p-8 bg-white rounded-2xl border border-slate-200 shadow-sm max-w-md text-center">
           <FolderOpen size={36} />
           <p className="text-sm text-slate-600 font-medium">
-            No projects found. Upload drone images or drawings to begin.
+            No drone projects found. Ingest aerial imagery to begin.
           </p>
         </div>
       )}
@@ -113,7 +99,7 @@ export default function ProjectSelector({
 
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900 text-sm sm:text-base truncate">
-                      {project.project_id}
+                      {project.name || project.project_id}
                     </p>
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -140,7 +126,7 @@ export default function ProjectSelector({
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0 ml-3">
-                  <StatusBadge status="COMPLETED" size="sm" />
+                  <StatusBadge status={project.status || "COMPLETED"} size="sm" />
                   <ChevronRight
                     className="text-slate-400 transition-all group-hover:translate-x-1 group-hover:text-cyan-600"
                     size={18}
