@@ -116,22 +116,71 @@ export const DroneSurveyProvider: React.FC<{ children: React.ReactNode }> = ({
 
       if (Array.isArray(backendProjects)) {
         setSurveys((prev) => {
-          const updated = [...prev];
+          const result: DroneSurvey[] = [];
+          
           for (const bp of backendProjects) {
-            const existingIdx = updated.findIndex(
+            const existing = prev.find(
               (s) => s.backendProjectId === bp.project_id || s.id === bp.project_id
             );
-            if (existingIdx >= 0) {
-              updated[existingIdx] = {
-                ...updated[existingIdx],
+
+            if (existing) {
+              result.push({
+                ...existing,
                 backendProjectId: bp.project_id,
+                name: bp.name || existing.name,
+                imageCount: bp.images_uploaded || existing.imageCount,
                 reconstructionStatus: bp.model_url ? "available" : "pending",
-                modelUrl: bp.model_url || updated[existingIdx].modelUrl,
-                processingTime: bp.processing_time || updated[existingIdx].processingTime,
-              };
+                modelUrl: bp.model_url || existing.modelUrl,
+                processingTime: bp.processing_time || existing.processingTime,
+                areaSqm: bp.surface_area || bp.ground_area || existing.areaSqm,
+              });
+            } else {
+              result.push({
+                id: bp.project_id,
+                backendProjectId: bp.project_id,
+                name: bp.name || `Survey ${bp.project_id}`,
+                createdAt: bp.generated_at || new Date().toISOString(),
+                imageCount: bp.images_uploaded || 0,
+                geotaggedImageCount: bp.images_uploaded || 0,
+                coordinateSystem: "WGS84",
+                images: [],
+                flightPath: [],
+                surveyBoundary: [],
+                areaSqm: bp.surface_area || bp.ground_area || 0,
+                areaSqft: Math.round((bp.surface_area || bp.ground_area || 0) * 10.7639 * 100) / 100,
+                areaAcres: Math.round(((bp.surface_area || bp.ground_area || 0) / 4046.86) * 1000) / 1000,
+                areaHectares: Math.round(((bp.surface_area || bp.ground_area || 0) / 10000) * 1000) / 1000,
+                perimeterM: 0,
+                boundingBox: bp.width > 0 ? {
+                  minLat: 0,
+                  maxLat: 0,
+                  minLng: 0,
+                  maxLng: 0,
+                  widthM: bp.width,
+                  lengthM: bp.length,
+                } : undefined,
+                elevation: bp.height > 0 ? {
+                  minElevation: 0,
+                  maxElevation: bp.height,
+                  deltaElevation: bp.height,
+                  avgElevation: bp.height / 2,
+                } : undefined,
+                processingStatus: "completed",
+                reconstructionStatus: bp.model_url ? "available" : "pending",
+                modelUrl: bp.model_url || `/api/projects/${bp.project_id}/model`,
+                processingTime: bp.processing_time || 0,
+              });
             }
           }
-          return updated;
+
+          // Keep in-memory in-flight surveys that haven't received project_id yet
+          for (const s of prev) {
+            if (!s.backendProjectId && !result.some((r) => r.id === s.id)) {
+              result.unshift(s);
+            }
+          }
+
+          return result;
         });
       }
     } catch (err) {

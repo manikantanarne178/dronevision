@@ -29,11 +29,11 @@ API.interceptors.response.use(
         error.message
       );
     } else if (error.response?.status === 401) {
-      if (
-        !window.location.pathname.includes("/login") &&
-        !window.location.pathname.includes("/register")
-      ) {
-        console.warn("Session expired or unauthenticated.");
+      const isAuthPage =
+        window.location.pathname.includes("/login") ||
+        window.location.pathname.includes("/register");
+      if (!isAuthPage) {
+        console.warn("Session expired or unauthorized. Please log in.");
       }
     }
     return Promise.reject(error);
@@ -41,29 +41,10 @@ API.interceptors.response.use(
 );
 
 /**
- * Ensures an active authentication token exists, fetching a demo token if none is present.
+ * Returns the active authentication token from localStorage if present.
  */
 export async function ensureAuthToken(): Promise<string | null> {
-  const existing = localStorage.getItem("token");
-  if (existing) return existing;
-
-  try {
-    const res = await axios.post(
-      `${API_BASE_URL}/api/auth/login`,
-      {
-        email: "y21ece178@gmail.com",
-        password: "Harini@12",
-      },
-      { timeout: 15000 }
-    );
-    if (res.data?.access_token) {
-      localStorage.setItem("token", res.data.access_token);
-      return res.data.access_token;
-    }
-  } catch (err) {
-    console.warn("Auto-token resolution notice:", err);
-  }
-  return null;
+  return localStorage.getItem("token");
 }
 
 /**
