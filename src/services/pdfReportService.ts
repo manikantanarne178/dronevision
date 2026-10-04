@@ -38,18 +38,31 @@ export class PDFReportService {
     const bgLight = [248, 250, 252] as const; // #F8FAFC
     const borderSlate = [226, 232, 240] as const; // #E2E8F0
 
-    // Formatted Dates & Identifiers
-    const surveyDateObj = survey.createdAt ? new Date(survey.createdAt) : new Date();
-    const surveyDateStr = surveyDateObj.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-    const surveyTimeStr = surveyDateObj.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+    // Formatted Dates & Identifiers (Safe parsing)
+    let surveyDateObj = new Date();
+    if (survey.createdAt) {
+      const parsed = new Date(survey.createdAt);
+      if (!isNaN(parsed.getTime())) {
+        surveyDateObj = parsed;
+      }
+    }
+
+    const surveyDateStr = !isNaN(surveyDateObj.getTime())
+      ? surveyDateObj.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })
+      : new Date().toLocaleDateString("en-GB");
+
+    const surveyTimeStr = !isNaN(surveyDateObj.getTime())
+      ? surveyDateObj.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      : new Date().toLocaleTimeString("en-GB");
+
     const generationDateStr = new Date().toLocaleString("en-GB", {
       day: "2-digit",
       month: "2-digit",
@@ -467,8 +480,13 @@ export class PDFReportService {
     // File Saving with sanitized name
     // -----------------------------------------------------------------
     const sanitizedMission = missionName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 32);
-    const dateStamp = surveyDateObj.toISOString().slice(0, 10);
-    const timeStamp = surveyDateObj.toTimeString().slice(0, 8).replace(/:/g, "");
+    const now = new Date();
+    const dateStamp = !isNaN(surveyDateObj.getTime())
+      ? surveyDateObj.toISOString().slice(0, 10)
+      : now.toISOString().slice(0, 10);
+    const timeStamp = !isNaN(surveyDateObj.getTime())
+      ? surveyDateObj.toTimeString().slice(0, 8).replace(/:/g, "")
+      : now.toTimeString().slice(0, 8).replace(/:/g, "");
     const fileName = `DroneVision_${sanitizedMission}_${dateStamp}_${timeStamp}.pdf`;
 
     doc.save(fileName);
