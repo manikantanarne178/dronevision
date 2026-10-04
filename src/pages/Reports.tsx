@@ -9,7 +9,7 @@ import {
   Trash2,
   CheckCircle2,
   HardDrive,
-  Printer,
+  Download,
   FileCode,
   Loader2,
   AlertCircle,
@@ -207,13 +207,13 @@ export default function Reports() {
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Format Standards
+              Format Standard
             </span>
             <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
               <FileText size={16} />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 font-mono">PDF / JSON</h2>
+          <h2 className="text-2xl font-bold text-slate-900 font-mono">PDF Report</h2>
           <span className="text-[11px] text-slate-400 mt-0.5 block">
             Engineering grade
           </span>
@@ -303,6 +303,7 @@ export default function Reports() {
                   onClick={() => handlePrintReport(survey)}
                   disabled={isGenerating}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  title="Download official PDF report"
                 >
                   {isGenerating ? (
                     <>
@@ -311,8 +312,8 @@ export default function Reports() {
                     </>
                   ) : (
                     <>
-                      <Printer size={14} />
-                      <span>Print / PDF</span>
+                      <Download size={14} />
+                      <span>Download PDF</span>
                     </>
                   )}
                 </button>
