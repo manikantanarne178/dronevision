@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import API from "../api";
 import "./Reports.css";
 import { useDroneSurvey } from "../context/DroneSurveyContext";
+import PDFReportService from "../services/pdfReportService";
 import {
   FileText,
   BarChart3,
@@ -10,13 +11,16 @@ import {
   HardDrive,
   Printer,
   FileCode,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 export default function Reports() {
-  const { surveys, deleteSurvey, setActiveSurveyId } =
-    useDroneSurvey();
+  const { surveys, deleteSurvey } = useDroneSurvey();
   const [backendProjects, setBackendProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     loadProjects();
@@ -24,6 +28,7 @@ export default function Reports() {
 
   const loadProjects = async () => {
     try {
+      setLoading(true);
       const res = await API.get("/api/projects/");
       if (res.data?.success && Array.isArray(res.data.projects)) {
         setBackendProjects(res.data.projects);
@@ -36,20 +41,40 @@ export default function Reports() {
   };
 
   const handleExportJSON = (survey: any) => {
-    const dataStr =
-      "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(survey, null, 2));
-    const a = document.createElement("a");
-    a.href = dataStr;
-    a.download = `${survey.name || survey.id}_SURVEY_AUDIT.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    try {
+      const dataStr =
+        "data:text/json;charset=utf-8," +
+        encodeURIComponent(JSON.stringify(survey, null, 2));
+      const a = document.createElement("a");
+      a.href = dataStr;
+      const cleanName = (survey.name || survey.id).replace(/[^a-zA-Z0-9_-]/g, "_");
+      a.download = `${cleanName}_SURVEY_AUDIT.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setFeedback({ type: "success", message: "JSON technical audit exported successfully." });
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (err) {
+      console.error("JSON export notice:", err);
+      setFeedback({ type: "error", message: "Unable to export JSON data. Please try again." });
+    }
   };
 
-  const handlePrintReport = (survey: any) => {
-    setActiveSurveyId(survey.id);
-    window.print();
+  const handlePrintReport = async (survey: any) => {
+    const surveyId = survey.id || survey.backendProjectId;
+    try {
+      setGeneratingPdfId(surveyId);
+      setFeedback(null);
+      await PDFReportService.generateSurveyPDF(survey);
+      setFeedback({ type: "success", message: "PDF report generated successfully." });
+      setTimeout(() => setFeedback(null), 3500);
+    } catch (err) {
+      console.error("PDF generation failure:", err);
+      setFeedback({ type: "error", message: "Unable to generate PDF report. Please try again." });
+      setTimeout(() => setFeedback(null), 4000);
+    } finally {
+      setGeneratingPdfId(null);
+    }
   };
 
   const totalReports = Math.max(surveys.length, backendProjects.length);
@@ -75,6 +100,32 @@ export default function Reports() {
           </p>
         </div>
       </div>
+
+      {/* Feedback Banner */}
+      {feedback && (
+        <div
+          className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
+            feedback.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {feedback.type === "success" ? (
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle size={16} className="text-rose-600 shrink-0" />
+            )}
+            <span className="font-semibold">{feedback.message}</span>
+          </div>
+          <button
+            onClick={() => setFeedback(null)}
+            className="text-slate-400 hover:text-slate-700 font-bold px-1 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* KPI Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -164,69 +215,86 @@ export default function Reports() {
           </div>
         )}
 
-        {surveys.map((survey) => (
-          <div
-            className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-cyan-400 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-            key={survey.id}
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 shrink-0">
-                <FileText size={22} />
-              </div>
+        {surveys.map((survey) => {
+          const isGenerating = generatingPdfId === (survey.id || survey.backendProjectId);
 
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-900 truncate">
-                  {survey.name}
-                </h3>
+          return (
+            <div
+              className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-cyan-400 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+              key={survey.id}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 shrink-0">
+                  <FileText size={22} />
+                </div>
 
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1">
-                  <span>{new Date(survey.createdAt).toLocaleString()}</span>
-                  <span>•</span>
-                  <span>{survey.imageCount} Images ({survey.geotaggedImageCount} Geotagged)</span>
-                  {survey.areaSqm > 0 && (
-                    <>
-                      <span>•</span>
-                      <span className="font-mono text-emerald-700 font-semibold">
-                        {survey.areaSqm.toLocaleString()} m² ({survey.areaAcres} ac)
-                      </span>
-                    </>
-                  )}
-                  {survey.utmZone && (
-                    <>
-                      <span>•</span>
-                      <span className="font-mono text-cyan-700">{survey.utmZone}</span>
-                    </>
-                  )}
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-900 truncate">
+                    {survey.name}
+                  </h3>
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1">
+                    <span>{new Date(survey.createdAt).toLocaleString()}</span>
+                    <span>•</span>
+                    <span>
+                      {survey.imageCount} Images ({survey.geotaggedImageCount || survey.imageCount} Geotagged)
+                    </span>
+                    {survey.areaSqm > 0 && (
+                      <>
+                        <span>•</span>
+                        <span className="font-mono text-emerald-700 font-semibold">
+                          {survey.areaSqm.toLocaleString()} m² ({survey.areaAcres || (Math.round((survey.areaSqm / 4046.86) * 1000) / 1000)} ac)
+                        </span>
+                      </>
+                    )}
+                    {survey.utmZone && (
+                      <>
+                        <span>•</span>
+                        <span className="font-mono text-cyan-700">{survey.utmZone}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => handlePrintReport(survey)}
+                  disabled={isGenerating}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Generating PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Printer size={14} />
+                      <span>Print / PDF</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleExportJSON(survey)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <FileCode size={14} />
+                  <span>JSON</span>
+                </button>
+
+                <button
+                  onClick={() => deleteSurvey(survey.id)}
+                  className="inline-flex items-center gap-1.5 p-2 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                  title="Delete survey record"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => handlePrintReport(survey)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              >
-                <Printer size={14} />
-                Print / PDF
-              </button>
-
-              <button
-                onClick={() => handleExportJSON(survey)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-              >
-                <FileCode size={14} />
-                JSON
-              </button>
-
-              <button
-                onClick={() => deleteSurvey(survey.id)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
