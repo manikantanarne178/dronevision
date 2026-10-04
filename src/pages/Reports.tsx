@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import API from "../api";
+import { useEffect, useState, useMemo } from "react";
+import DroneApiService, { type DroneProjectBackend } from "../services/droneApiService";
 import "./Reports.css";
 import { useDroneSurvey } from "../context/DroneSurveyContext";
 import PDFReportService from "../services/pdfReportService";
@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 
 export default function Reports() {
-  const { surveys, deleteSurvey } = useDroneSurvey();
-  const [backendProjects, setBackendProjects] = useState<any[]>([]);
+  const { surveys, deleteSurvey, refreshSurveys } = useDroneSurvey();
+  const [backendProjects, setBackendProjects] = useState<DroneProjectBackend[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -29,16 +29,47 @@ export default function Reports() {
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const res = await API.get("/api/projects/");
-      if (res.data?.success && Array.isArray(res.data.projects)) {
-        setBackendProjects(res.data.projects);
-      }
+      await refreshSurveys();
+      const list = await DroneApiService.listDroneProjects();
+      setBackendProjects(list);
     } catch (err) {
       console.warn("Backend project records notice:", err);
     } finally {
       setLoading(false);
     }
   };
+
+  // Merge context surveys with live backend projects
+  const displayReports = useMemo(() => {
+    const list: any[] = [...surveys];
+
+    backendProjects.forEach((proj) => {
+      const projId = proj.project_id;
+      const alreadyInList = list.some(
+        (s) => s.backendProjectId === projId || s.id === projId
+      );
+
+      if (!alreadyInList && projId) {
+        const area = Number(proj.surface_area || proj.ground_area || 0);
+        list.push({
+          id: projId,
+          backendProjectId: projId,
+          name: proj.name || `Drone Mission ${projId}`,
+          createdAt: proj.generated_at || new Date().toISOString(),
+          imageCount: Number(proj.images_uploaded || 0),
+          geotaggedImageCount: Number(proj.images_uploaded || 0),
+          areaSqm: area,
+          areaAcres: area > 0 ? Math.round((area / 4046.86) * 1000) / 1000 : 0,
+          areaHectares: area > 0 ? Math.round((area / 10000) * 1000) / 1000 : 0,
+          utmZone: "UTM Zone 32N (WGS84)",
+          reconstructionStatus: proj.model_url ? "available" : "pending",
+          processingStatus: "completed",
+        });
+      }
+    });
+
+    return list;
+  }, [surveys, backendProjects]);
 
   const handleExportJSON = (survey: any) => {
     try {
@@ -77,7 +108,17 @@ export default function Reports() {
     }
   };
 
-  const totalReports = Math.max(surveys.length, backendProjects.length);
+  const handleDeleteReport = async (survey: any) => {
+    const targetId = survey.id || survey.backendProjectId;
+    if (confirm(`Delete mapping report for "${survey.name || targetId}"?`)) {
+      await deleteSurvey(targetId);
+      setBackendProjects((prev) =>
+        prev.filter((p) => p.project_id !== targetId)
+      );
+    }
+  };
+
+  const totalReports = displayReports.length;
 
   return (
     <div className="reports-page space-y-6 max-w-7xl mx-auto">
@@ -196,14 +237,14 @@ export default function Reports() {
 
       {/* Reports List */}
       <div className="space-y-3">
-        {loading && surveys.length === 0 && (
+        {loading && displayReports.length === 0 && (
           <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-500 text-sm">
             <div className="w-5 h-5 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             Loading project documentation records...
           </div>
         )}
 
-        {!loading && surveys.length === 0 && backendProjects.length === 0 && (
+        {!loading && displayReports.length === 0 && (
           <div className="p-12 text-center bg-white rounded-xl border border-slate-200 text-slate-500">
             <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
             <p className="text-sm font-semibold text-slate-700">
@@ -215,13 +256,13 @@ export default function Reports() {
           </div>
         )}
 
-        {surveys.map((survey) => {
+        {displayReports.map((survey) => {
           const isGenerating = generatingPdfId === (survey.id || survey.backendProjectId);
 
           return (
             <div
               className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-cyan-400 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-              key={survey.id}
+              key={survey.id || survey.backendProjectId}
             >
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 shrink-0">
@@ -285,7 +326,7 @@ export default function Reports() {
                 </button>
 
                 <button
-                  onClick={() => deleteSurvey(survey.id)}
+                  onClick={() => handleDeleteReport(survey)}
                   className="inline-flex items-center gap-1.5 p-2 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                   title="Delete survey record"
                 >
